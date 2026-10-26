@@ -19,6 +19,7 @@ export type Case = {
   priority: string;
   decision: string;
   transaction_ids: number[];
+  entity_ids: string[];
   created_at: string;
   notes: { id: number; body: string; created_at: string }[];
 };

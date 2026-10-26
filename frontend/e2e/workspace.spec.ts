@@ -283,3 +283,50 @@ test("advanced transaction queries persist and global search opens stored record
     page.getByRole("option", { name: viewName, exact: true }),
   ).toHaveCount(0);
 });
+
+test("case workbench supports linked evidence, persisted resizing and audit timeline", async ({
+  page,
+  request,
+}) => {
+  const tx = (
+    await (
+      await request.get("http://127.0.0.1:8000/api/v1/transactions?page_size=1")
+    ).json()
+  ).items[0];
+  const record = await (
+    await request.post("http://127.0.0.1:8000/api/v1/cases", {
+      data: {
+        title: `Workbench evidence ${Date.now()}`,
+        transaction_ids: [tx.id],
+        entity_ids: ["device-1"],
+      },
+    })
+  ).json();
+  await page.goto(`/#investigations/${record.id}`);
+  await expect(
+    page.getByRole("heading", { name: "Linked evidence", exact: true }),
+  ).toBeVisible();
+  const splitter = page.getByRole("separator", {
+    name: "Resize investigation queue",
+  });
+  const before = Number(await splitter.getAttribute("aria-valuenow"));
+  await splitter.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(splitter).toHaveAttribute("aria-valuenow", String(before + 2));
+  await page.getByLabel("Case status").selectOption("Escalated");
+  await expect(page.locator(".timeline")).toContainText("Open → Escalated");
+  await page.getByRole("button", { name: "device-1", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "Explore neighborhood" }),
+  ).toHaveAttribute("href", "#graph/device-1");
+  await page.reload();
+  await expect(
+    page.getByRole("separator", { name: "Resize investigation queue" }),
+  ).toHaveAttribute("aria-valuenow", String(before + 2));
+  await expect(page.getByLabel("Case status")).toHaveValue("Escalated");
+  await page.screenshot({
+    path: "../docs/screenshots/investigation-upgrade.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+});

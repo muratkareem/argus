@@ -1,3 +1,4 @@
+import { InvestigationWorkspace } from "./pages/InvestigationWorkspace";
 import { TransactionIntelligence } from "./pages/TransactionIntelligence";
 import { Risk, Empty, Panel, Metric, TxTable, Loading } from "./ui";
 import { CommandMenu } from "./components/CommandMenu";
@@ -309,7 +310,7 @@ export default function App() {
             <Laboratory revision={revision} fail={fail} />
           )}
           {page === "investigations" && (
-            <Investigations
+            <InvestigationWorkspace
               revision={revision}
               onSelect={setSelectedTx}
               fail={fail}
@@ -810,7 +811,7 @@ function TransactionDrawer({
       notify(`Investigation #${c.id} created and linked.`);
       refresh();
       close();
-      nav("investigations");
+      nav("investigations/" + c.id);
     } catch (e) {
       fail(e);
     }
@@ -892,7 +893,7 @@ function TransactionDrawer({
                   key={c}
                   onClick={() => {
                     close();
-                    nav("investigations");
+                    nav("investigations/" + c);
                   }}
                 >
                   Case #{c} <ArrowRight size={12} />
@@ -1380,294 +1381,6 @@ function Laboratory({
           </div>
         </Panel>
       </div>
-    </>
-  );
-}
-
-function Investigations({
-  revision,
-  onSelect,
-  fail,
-  notify,
-}: {
-  revision: number;
-  onSelect: (id: number) => void;
-  fail: (e: unknown) => void;
-  notify: (s: string) => void;
-}) {
-  const [cases, setCases] = useState<Case[]>([]),
-    [q, setQ] = useState(""),
-    [title, setTitle] = useState(""),
-    [selected, setSelected] = useState<number | null>(null),
-    [note, setNote] = useState(""),
-    [decision, setDecision] = useState(""),
-    [busy, setBusy] = useState(false);
-  const active = cases.find((c) => c.id === selected);
-  async function load() {
-    try {
-      const data = await api<Case[]>("/cases?q=" + encodeURIComponent(q));
-      setCases(data);
-    } catch (e) {
-      fail(e);
-    }
-  }
-  useEffect(() => {
-    void load();
-  }, [q, revision]);
-  useEffect(
-    () => setDecision(active?.decision ?? ""),
-    [selected, active?.decision],
-  );
-  async function create() {
-    setBusy(true);
-    try {
-      const c = await api<Case>("/cases", send("POST", { title }));
-      setTitle("");
-      setSelected(c.id);
-      await load();
-      notify(`Investigation #${c.id} created.`);
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function update(patch: Record<string, string>) {
-    try {
-      await api(`/cases/${selected}`, send("PATCH", patch));
-      await load();
-      notify("Investigation saved.");
-    } catch (e) {
-      fail(e);
-    }
-  }
-  async function addNote() {
-    setBusy(true);
-    try {
-      await api(`/cases/${selected}/notes`, send("POST", { body: note }));
-      setNote("");
-      await load();
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <>
-      <Panel
-        title="Investigation queue"
-        meta={<span className="mono muted">{cases.length} matching cases</span>}
-      >
-        <div className="toolbar">
-          <label className="search-input">
-            <Search size={15} />
-            <input
-              aria-label="Search investigations"
-              placeholder="Search titles, notes, decisions…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </label>
-          <input
-            aria-label="New investigation title"
-            placeholder="New investigation title…"
-            value={title}
-            maxLength={200}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <button
-            className="primary"
-            disabled={title.trim().length < 3 || busy}
-            onClick={create}
-          >
-            <Plus size={15} />
-            Create case
-          </button>
-        </div>
-        {cases.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Case</th>
-                  <th>Status</th>
-                  <th>Priority</th>
-                  <th>Transactions</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cases.map((c) => (
-                  <tr
-                    key={c.id}
-                    onClick={() => setSelected(c.id)}
-                    className={selected === c.id ? "selected-row" : ""}
-                  >
-                    <td>
-                      <button
-                        className="text-button"
-                        onClick={() => setSelected(c.id)}
-                      >
-                        #{c.id} · {c.title}
-                      </button>
-                    </td>
-                    <td>
-                      <span className="badge neutral">{c.status}</span>
-                    </td>
-                    <td>
-                      <span
-                        className={
-                          "badge " +
-                          (["Critical", "High"].includes(c.priority)
-                            ? "danger"
-                            : "neutral")
-                        }
-                      >
-                        {c.priority}
-                      </span>
-                    </td>
-                    <td className="mono">{c.transaction_ids.length}</td>
-                    <td>{new Date(c.created_at).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <Empty>
-            No investigations yet. Create a case here or from a transaction.
-          </Empty>
-        )}
-      </Panel>
-      {active && (
-        <Panel
-          title={`Investigation #${active.id} · ${active.title}`}
-          meta={
-            <button
-              className="secondary"
-              onClick={async () => {
-                try {
-                  download(
-                    `argus-case-${active.id}.json`,
-                    await api(`/cases/${active.id}/export`),
-                  );
-                } catch (e) {
-                  fail(e);
-                }
-              }}
-            >
-              <ArrowDownToLine size={14} />
-              Export report
-            </button>
-          }
-        >
-          <div className="case-detail">
-            <div>
-              <div className="two-grid">
-                <label className="field">
-                  Status
-                  <select
-                    aria-label="Case status"
-                    value={active.status}
-                    onChange={(e) => update({ status: e.target.value })}
-                  >
-                    {[
-                      "Open",
-                      "In Review",
-                      "Escalated",
-                      "Resolved",
-                      "False Positive",
-                    ].map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  Priority
-                  <select
-                    aria-label="Case priority"
-                    value={active.priority}
-                    onChange={(e) => update({ priority: e.target.value })}
-                  >
-                    {["Low", "Medium", "High", "Critical"].map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <h3>Linked transactions</h3>
-              <div className="case-links">
-                {active.transaction_ids.map((id) => (
-                  <button
-                    className="secondary mono"
-                    key={id}
-                    onClick={() => onSelect(id)}
-                  >
-                    TX-{String(id).padStart(6, "0")}
-                    <ArrowRight size={13} />
-                  </button>
-                ))}
-                {!active.transaction_ids.length && (
-                  <p className="muted">
-                    Open a transaction to link it to this case.
-                  </p>
-                )}
-              </div>
-              <label className="field">
-                Analyst decision
-                <textarea
-                  aria-label="Analyst decision"
-                  value={decision}
-                  onChange={(e) => setDecision(e.target.value)}
-                  placeholder="Record your assessment and supporting evidence…"
-                  maxLength={10000}
-                />
-              </label>
-              <button
-                className="secondary"
-                onClick={() => update({ decision })}
-              >
-                Save decision
-              </button>
-            </div>
-            <div>
-              <h3>Investigation notes</h3>
-              <div className="notes">
-                {active.notes.map((n) => (
-                  <div className="note" key={n.id}>
-                    <span className="mono">
-                      {new Date(n.created_at).toLocaleString()}
-                    </span>
-                    <p>{n.body}</p>
-                  </div>
-                ))}
-                {!active.notes.length && (
-                  <p className="muted">No notes recorded.</p>
-                )}
-              </div>
-              <label className="field">
-                Add a note
-                <textarea
-                  aria-label="Investigation note"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Record an observation…"
-                  maxLength={10000}
-                />
-              </label>
-              <button
-                className="primary"
-                disabled={!note.trim() || busy}
-                onClick={addNote}
-              >
-                <Plus size={14} />
-                Add note
-              </button>
-            </div>
-          </div>
-        </Panel>
-      )}
     </>
   );
 }

@@ -142,3 +142,12 @@ names between a transaction and cases mentioning it; result controls now have
 explicit accessible type/name labels. The focused saved-view/search/export flow
 passed after correction; preceding five browser flows passed. Foundation/backend
 milestone CI runs 40342875329 and 40343465078 both passed all four jobs.
+
+Investigation workbench milestone: three linked panes (case queue, event timeline/
+analyst decision, contextual transaction/entity evidence), pointer/keyboard resize
+handles with persisted widths, deep case links, real status/priority change events
+and evidence exports. Tests exposed a stale-response/overlapping-save race; case
+loads now reject stale responses and editing/saving waits for completion. Both
+investigation browser workflows passed after the fix, including restart persistence,
+notes/decisions, timeline changes, synthetic entity links and resized panel state.
+Actual workbench screenshot reviewed in docs/screenshots/investigation-upgrade.png.
