@@ -93,3 +93,26 @@ def connect(url):
         pool_pre_ping=True,
     )
     return engine, sessionmaker(bind=engine, expire_on_commit=False)
+
+
+class SavedView(Base):
+    __tablename__ = "saved_views"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    filters = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=now)
+
+
+class CaseEvent(Base):
+    __tablename__ = "case_events"
+    id = Column(Integer, primary_key=True)
+    case_id = Column(ForeignKey("cases.id"), nullable=False, index=True)
+    kind = Column(String(40), nullable=False)
+    payload = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=now)
+
+
+class CaseEntity(Base):
+    __tablename__ = "case_entities"
+    case_id = Column(ForeignKey("cases.id"), primary_key=True)
+    entity_id = Column(ForeignKey("entities.id"), primary_key=True)

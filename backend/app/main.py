@@ -20,6 +20,8 @@ from app.data import ingest
 from app.db import (
     Base,
     Case,
+    CaseEntity,
+    CaseEvent,
     CaseTransaction,
     Dataset,
     Entity,
@@ -28,6 +30,7 @@ from app.db import (
     Transaction,
     connect,
 )
+from app.intelligence import AdvancedFilters, advanced_where, intelligence_router, timeline
 from app.ml import FEATURES, Predictor, validate_frame
 
 STATUSES = Literal["Open", "In Review", "Escalated", "Resolved", "False Positive"]
@@ -50,6 +53,7 @@ class CaseCreate(BaseModel):
     title: str = Field(min_length=3, max_length=200)
     priority: PRIORITIES = "Medium"
     transaction_ids: list[int] = Field(default_factory=list, max_length=100)
+    entity_ids: list[str] = Field(default_factory=list, max_length=100)
 
 
 class CaseUpdate(BaseModel):
@@ -100,6 +104,9 @@ def case_json(session, case):
                 select(CaseTransaction.transaction_id).where(CaseTransaction.case_id == case.id)
             )
         ),
+        "entity_ids": list(
+            session.scalars(select(CaseEntity.entity_id).where(CaseEntity.case_id == case.id))
+        ),
         "notes": [
             {"id": n.id, "body": n.body, "created_at": n.created_at.isoformat()}
             for n in session.scalars(select(Note).where(Note.case_id == case.id).order_by(Note.id))
@@ -123,7 +130,7 @@ def create_app(settings=None):
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_methods=["GET", "POST", "PATCH"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Content-Type"],
     )
 
@@ -136,6 +143,8 @@ def create_app(settings=None):
         if obj is None:
             raise HTTPException(404, f"{cls.__name__} not found")
         return obj
+
+    app.include_router(intelligence_router(db))
 
     def prediction(features, provenance):
         started = time.perf_counter()
@@ -253,12 +262,15 @@ def create_app(settings=None):
         flagged: bool | None = None,
         provenance: Literal["ulb", "synthetic"] | None = None,
         min_risk: float | None = Query(None, ge=0, le=1),
+        extra: AdvancedFilters = Depends(),
         session: Session = Depends(db),
     ):
         rows = [
             transaction_json(tx, p)
             for tx, p in session.execute(
-                transaction_query(q, flagged, provenance, min_risk).order_by(Transaction.id)
+                advanced_where(
+                    transaction_query(q, flagged, provenance, min_risk), extra, min_risk
+                ).order_by(Transaction.id)
             )
         ]
         if format == "json":
@@ -297,13 +309,14 @@ def create_app(settings=None):
         flagged: bool | None = None,
         provenance: Literal["ulb", "synthetic"] | None = None,
         min_risk: float | None = Query(None, ge=0, le=1),
+        extra: AdvancedFilters = Depends(),
         sort: Literal["id", "amount", "risk_score", "time"] = "risk_score",
         direction: Literal["asc", "desc"] = "desc",
         page: int = Query(1, ge=1),
         page_size: int = Query(20, ge=1, le=100),
         session: Session = Depends(db),
     ):
-        query = transaction_query(q, flagged, provenance, min_risk)
+        query = advanced_where(transaction_query(q, flagged, provenance, min_risk), extra, min_risk)
         total = session.scalar(select(func.count()).select_from(query.subquery()))
         column = getattr(Transaction, sort)
         order = column.asc().nulls_last() if direction == "asc" else column.desc().nulls_last()
@@ -452,6 +465,8 @@ def create_app(settings=None):
     def create_case(data: CaseCreate, session: Session = Depends(db)):
         for id in set(data.transaction_ids):
             require(session, Transaction, id)
+        for entity_id in set(data.entity_ids):
+            require(session, Entity, entity_id)
         case = Case(title=data.title, priority=data.priority)
         session.add(case)
         session.flush()
@@ -461,6 +476,7 @@ def create_app(settings=None):
                 for id in set(data.transaction_ids)
             ]
         )
+        session.add_all([CaseEntity(case_id=case.id, entity_id=e) for e in set(data.entity_ids)])
         session.commit()
         return case_json(session, case)
 
@@ -472,7 +488,16 @@ def create_app(settings=None):
     def update_case(id: int, data: CaseUpdate, session: Session = Depends(db)):
         case = require(session, Case, id)
         for key, value in data.model_dump(exclude_none=True).items():
-            setattr(case, key, value)
+            previous = getattr(case, key)
+            if previous != value:
+                session.add(
+                    CaseEvent(
+                        case_id=id,
+                        kind=f"{key}_changed",
+                        payload={"before": previous, "after": value},
+                    )
+                )
+                setattr(case, key, value)
         session.commit()
         return case_json(session, case)
 
@@ -482,6 +507,13 @@ def create_app(settings=None):
         require(session, Transaction, data.transaction_id)
         if not session.get(CaseTransaction, (id, data.transaction_id)):
             session.add(CaseTransaction(case_id=id, transaction_id=data.transaction_id))
+            session.add(
+                CaseEvent(
+                    case_id=id,
+                    kind="transaction_linked",
+                    payload={"transaction_id": data.transaction_id},
+                )
+            )
             session.commit()
         return case_json(session, case)
 
@@ -502,6 +534,11 @@ def create_app(settings=None):
         return {
             "exported_at": pd.Timestamp.now(tz="UTC").isoformat(),
             "case": case,
+            "timeline": timeline(session, require(session, Case, id)),
+            "entities": [
+                {"id": e.id, "kind": e.kind, "label": e.label, "provenance": "synthetic"}
+                for e in session.scalars(select(Entity).where(Entity.id.in_(case["entity_ids"])))
+            ],
             "transactions": txs,
             "disclaimer": "Research prototype. Analyst notes are opinions; scores are uncalibrated. Synthetic records are artificial.",
         }

@@ -126,3 +126,10 @@ under `.local/upgrade-e2e*`, preserving the full research workspace.
 Next: bounded global search, saved server-side filters, richer transaction
 queries; additive case events/entity links; resizable workbench; graph traversal;
 installed Ollama verification, then final integration/screenshots/CI.
+
+Upgrade backend milestone: global search, shared validated transaction/export
+range filters, database-backed saved views, append-only case field/link events,
+timeline export, synthetic entity/case links, entity detail and bounded graph
+neighborhood traversal are implemented. All 20 backend tests passed on SQLite
+and PostgreSQL using isolated per-test schemas. Existing ULB data/model files and
+benchmark results remain unchanged. New tables are additive via create_all.
