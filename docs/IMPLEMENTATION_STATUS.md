@@ -192,3 +192,11 @@ backend/frontend/Compose jobs passed. The browser job now uses verified preinsta
 Google Chrome on ubuntu-24.04 via Playwright's supported `chrome` channel, printing
 its version explicitly. Local tests retain the downloaded Chromium default. No
 browser test is skipped; the revised CI job must run all eleven workflows.
+
+Full-data activation QA passed: all 284,366 original transaction rows, dataset CSV,
+active model binary/version, cases/notes, synthetic graph and both ULB benchmark
+reports matched before/after fingerprints exactly. Advanced query/export counts
+matched on actual ULB records. Mobile review caught the full 25-million-unit KPI
+overlapping its neighboring cell; it now uses a compact display with the exact
+value retained in accessible text/title. All KPI values fit their cells at 390px.
+Actual Command Center, explorer, SHAP and Laboratory screens were recaptured.

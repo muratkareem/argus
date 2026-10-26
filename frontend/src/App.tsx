@@ -480,7 +480,17 @@ function OverviewPage({
           value={
             <>
               <span className="metric-unit">∑</span>
-              {amount(data.volume)}
+              <span className="volume-full">{amount(data.volume)}</span>
+              <span
+                className="volume-compact"
+                title={amount(data.volume)}
+                aria-label={amount(data.volume)}
+              >
+                {new Intl.NumberFormat("en-US", {
+                  notation: "compact",
+                  maximumFractionDigits: 2,
+                }).format(data.volume)}
+              </span>
             </>
           }
           detail={<>Amount units · source denomination unspecified</>}

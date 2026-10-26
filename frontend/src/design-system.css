@@ -1644,3 +1644,14 @@ footer {
   font-size: 10px;
   color: #a78e89;
 }
+.volume-compact {
+  display: none;
+}
+@media (max-width: 700px) {
+  .volume-full {
+    display: none;
+  }
+  .volume-compact {
+    display: inline;
+  }
+}
