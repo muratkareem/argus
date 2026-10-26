@@ -68,3 +68,27 @@ aggregations to avoid hydrating the full dataset. Full ULB training was measured
 in two runs, but memory profiling and throughput guarantees are not provided.
 This is not a high-throughput production ingestion service. No background worker, model registry service,
 calibration service, or automatic retraining is claimed.
+
+
+## Analyst upgrade extension
+
+`app/intelligence.py` adds bounded search, validated range filters, saved queries,
+case timelines, entity links and graph traversal. `app/copilot.py` assembles bounded
+read-only source records and validates structured citation IDs. Existing training,
+model serialization and benchmark methodology are unchanged.
+
+New `saved_views`, `case_events` and `case_entities` tables are additive. Case
+creation and existing note timestamps are exposed honestly; past status changes
+without recorded events are not reconstructed. Future field/link changes append
+events. No event immutability against direct database administrators is claimed.
+
+Frontend pages are separated into TransactionIntelligence, InvestigationWorkspace,
+GraphIntelligence and CopilotWorkspace. Shared table/panel primitives and a
+pointer/keyboard SplitPane support linked views. Global search follows record
+IDs; chart selections map to the same backend filter schema used by export.
+Density and splitter widths are local display preferences; saved query definitions
+persist in SQL and are shared in this unauthenticated local workspace.
+
+Live qwen2.5:7b integration was verified locally. The default remains disabled and
+CI uses a mocked transport plus parser/context tests. The full PostgreSQL research
+workspace is fingerprinted before/after activating the upgrade and read-only QA.

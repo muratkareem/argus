@@ -1,91 +1,95 @@
 # ARGUS implementation status
 
-Updated: 26 October 2026. Functional MVP implemented and published at
-https://github.com/muratkareem/argus.
+Updated: 26 October 2026. The existing MVP and enterprise analyst upgrade are
+implemented and published at https://github.com/muratkareem/argus.
 
-## Working modules
+## Enterprise upgrade delivered
 
-- Actual ULB pipeline and synthetic fixtures: Logistic Regression, Random Forest,
-  XGBoost; validation tuning/threshold/algorithm selection, untouched test metrics,
-  duplicate analysis, stratified and chronological splits, trusted serialization,
-  provenance guards and actual inference. SHAP reconstruction verified for all
-  three algorithms.
-- CSV import (192 MiB bounded upload supports the official full ULB file), error
-  reporting, duplicate detection, PostgreSQL persistence, batch inference,
-  pagination/search/filter/sort and CSV/JSON transaction export.
-- SQL-aggregated analytics, actual stored-data dashboard, transaction details,
-  SHAP, saved experiment comparison/PR curves/confusion matrices/importance/export.
-- Persisted investigations, case/transaction links, notes, priorities, statuses,
-  analyst decisions, history search, dated JSON reports, restart persistence.
-- Separate SQL-backed synthetic relational graph with selection, zoom/pan,
-  type highlighting and entity details. No inferred ULB relationships.
-- Optional local Ollama read-only evidence API, disabled by default, graceful
-  unavailable state. Enabled HTTP response path is mocked in tests.
-- React/TypeScript/Vite/Tailwind analyst workspace, all navigation pages,
-  responsive desktop/mobile screenshots, loading/error/empty states.
-- Locked dependencies, MIT license, candidate-source review and attribution,
-  README, architecture, ML methodology, datasets, API and roadmap documentation.
-- Non-root API Docker image, PostgreSQL + Nginx Compose stack, GitHub Actions.
+- Flat compact original ARGUS design system; density preferences; shared UI
+  primitives; separate transaction, investigation, graph and Copilot page modules.
+- Command Center with stored-data analytics, active model metrics, recent cases,
+  interactive chart/risk ranges linked to validated transaction queries.
+- Advanced transaction query builder: amount/time/score/label/provenance filters,
+  persisted shared local saved views, sorting/pagination and export/query parity.
+  Invalid queries hide stale results and recover after correction.
+- Global actual-record search with Cmd/Ctrl+K, record deep links, Escape and
+  contained dialog focus. No invented object types are attached to ULB records.
+- Resizable three-pane investigation workbench: queue, audit timeline/decisions,
+  contextual transaction/SHAP/synthetic-entity evidence. Pointer/keyboard widths
+  persist locally. Stale responses and overlapping saves cannot reset edits.
+- Additive SQL `saved_views`, `case_events`, `case_entities` tables. Existing case
+  creation/note timestamps are retained; unrecorded past transitions are not invented.
+- Synthetic graph neighborhood expansion (0–4 hops), entity/relationship filters,
+  shared-device structural cue, accessible node selection, neighbor traversal and
+  bidirectional case/entity links. No inferred ULB account/device/card relationships.
+- Bounded read-only Copilot context, stored scores, compatible versioned SHAP,
+  source records and structured citation-ID validation. Unknown structured IDs
+  are rejected. UI supports explicit labeled LLM-note saving as an analyst action.
+- Real installed qwen2.5:7b API and browser integration verified using synthetic
+  records. Valid citations do not guarantee every generated factual claim.
+- Actual desktop/mobile screenshots, updated architecture/API/dataset/roadmap
+  documentation and public design research references. No proprietary assets copied.
 
-## Actual benchmark evidence
+## Academic core and preservation
 
-Official Kaggle GET download succeeded without credentials. CSV stays ignored at
-`data/private/creditcard.csv`; checksum/source metadata is tracked in
-`docs/research/ulb-source.json`. No full dataset or model binary is published.
+Original ML training implementation, ULB source CSV, model artifacts, PostgreSQL
+records and stratified/chronological evaluation reports are preserved. No full
+ULB retraining or reimport was performed as part of this upgrade. Browser regression
+work used a separate synthetic database/model directory under `.local/upgrade-e2e*`.
 
-- Original: 284,807 rows. Removed 1,081 duplicate feature rows; 283,726 unique rows,
-  473 frauds. Both full-data experiments completed successfully.
-- Stratified: XGBoost selected on validation AP. Untouched test: 56,746 rows / 95
-  frauds; precision .9474, recall .7579, F1 .8421, AP .8069, ROC-AUC .9793.
-- Chronological: Logistic Regression selected on validation AP. Untouched test:
-  56,746 rows / 74 frauds; precision .9423, recall .6622, F1 .7778, AP .7475,
-  ROC-AUC .9818. All candidates' results are retained; no test-based reselection.
-- Exact parameters, thresholds, confusion matrices, PR curves, partitions, hashes,
-  runtime and environment are in the two ULB reports under `docs/research/`.
-- Synthetic experiment is retained and clearly labeled separately.
+Before/after activation and read-only QA on the original full-data workspace:
+284,366 transaction fingerprints/scores/thresholds/model versions, 3 datasets,
+1 case, 1 note, 31 synthetic entities and 36 relationships matched. CSV SHA-256,
+active model binary/version and both evaluation JSON checksums matched exactly.
+Evidence: `docs/research/upgrade-preservation.json`.
+
+- Authorized original CSV: 284,807 rows; 1,081 duplicates removed; 283,726 unique
+  ULB rows and 473 frauds. The original workspace also retains 640 synthetic rows.
+- Stratified validation-selected XGBoost: test precision .9474, recall .7579,
+  F1 .8421, AP .8069, ROC-AUC .9793 (56,746 test rows / 95 frauds).
+- Chronological validation-selected Logistic Regression: test precision .9423,
+  recall .6622, F1 .7778, AP .7475, ROC-AUC .9818 (56,746 rows / 74 frauds).
+- Logistic Regression, Random Forest, XGBoost, train-only preprocessing,
+  validation-only tuning/threshold selection, held-out evaluation, SHAP and
+  provenance guards remain intact. Dashboard rates are not held-out metrics.
 
 ## Executed verification
 
-- 16 pytest tests passed on SQLite and 16 on PostgreSQL 17, including API/CSV,
-  ML smoke, inference consistency, three-algorithm SHAP and case persistence.
-- Ruff lint/format and Python compile checks passed.
-- 3 Vitest component tests, ESLint/TypeScript and Vite production build passed.
-- npm audit: zero reported vulnerabilities after patched Vitest upgrade.
-- 4 Playwright browser workflows passed on SQLite and PostgreSQL-backed demo:
-  imports/errors/updated stats, investigation notes/decisions/status persistence,
-  exports, model comparison, graph, disabled Copilot, settings, mobile viewport.
-- Actual full ULB HTTP upload verified: imported/scored 283,726 rows, skipped
-  1,081 duplicates. Actual ULB single prediction matched stored batch inference.
-- Local PostgreSQL workspace: 284,366 scored records (283,726 ULB + 640 explicitly
-  synthetic). Full-data overview aggregation measured .174 seconds in one local
-  request; this is not a throughput or memory guarantee.
-- Browser verification on actual ULB data passed: overview, source/flag filters,
-  XGBoost SHAP, Laboratory, mobile layout; no page errors. Actual screenshots
-  reviewed; plot animations disabled to prevent incomplete captures.
-- GitHub Actions baseline `d08d46e`: **all four jobs passed**, including complete
-  Docker Compose build/start, PostgreSQL health, 600 demo rows scored through the
-  frontend API proxy, backend tests, browser flows, frontend checks/audit.
-  Evidence: https://github.com/muratkareem/argus/actions/runs/40332175925
-- Full-ULB/SQL milestone `dcfa217`: all four CI jobs passed again.
-  Evidence: https://github.com/muratkareem/argus/actions/runs/40333965624
-- Repeated full-data runs reproduced every candidate’s evaluation metrics exactly.
-  PR plot sampling now preserves recall transitions and endpoints, with a new
-  regression test. Final code revision `e2ad48c` passed all four CI jobs.
-  Evidence: https://github.com/muratkareem/argus/actions/runs/40334710892
-- Frontend bundle retains upstream notices in public/THIRD_PARTY_NOTICES.txt.
+| Check | Actual result |
+|---|---|
+| Backend / ML / API on SQLite | 23 pytest tests passed |
+| Backend on PostgreSQL 17 | Same 23 tests passed in isolated schemas |
+| Python quality | Ruff lint/format and compile checks passed |
+| Frontend components | 3 Vitest tests passed |
+| Frontend quality/build | ESLint, TypeScript, Vite production build passed |
+| Default browser workflows | All 11 Playwright flows passed |
+| Real local-model API | qwen2.5:7b, supplied citation IDs only, DB counts unchanged |
+| Real local-model browser | Context/source inspection, generation, explicit labeled-note save passed |
+| Full original ULB workspace | Dashboard, filters/export parity, search, SHAP, Laboratory, graph and mobile QA passed |
+| Preservation | Original transaction/model/dataset/report fingerprints matched |
+| CI code revision 9bef4c4 | All 4 jobs passed, including actual Chrome workflows and Docker Compose |
 
-## Git and continuation
+CI evidence: https://github.com/muratkareem/argus/actions/runs/40353906621
+The final documentation/screenshots commit receives the same automated checks.
 
-Account verified as muratkareem. Repository was absent and created public.
-No existing remote work overwritten. Commits `971d2fc` (backend/ML) and
-`d08d46e` (analyst workspace/Compose/CI), and `dcfa217` (full ULB benchmark) were pushed. Credential-pattern checks
-passed before commits. Read-only ChatGPT project `sources/` untouched.
+Real-model evidence: `ollama-integration.json` and `ollama-ui-verification.json`
+under `docs/research`. Full-data query observations and mobile checks are in
+`full-workspace-upgrade-check.json`. These are single-host observations, not
+throughput/concurrency guarantees. Current npm audit reported no vulnerabilities.
 
-Local ignored `.env` selects the task-owned PostgreSQL cluster at loopback 55432.
-Its files are `.local/postgres`; ULB and synthetic model versions are in
-`ml/artifacts`. Stratified ULB XGBoost is active; the chronological run is retained
-for comparison. Preview/API/database processes are stopped after verification;
-all local data and artifacts are preserved. To resume this exact local workspace:
+CI browser provisioning was improved after an external browser/dependency install
+step stalled before tests began. Playwright now uses explicitly version-printed
+image-provided Chrome on Ubuntu 24.04. All 11 tests still run; none are skipped.
+Local tests continue using downloaded Chromium. Prior verified MVP CI also built
+and started PostgreSQL + FastAPI + frontend with actual synthetic ML inference.
+
+## Local continuation
+
+The task-owned preview/API/PostgreSQL processes are stopped after verification;
+data and artifacts are preserved. Existing Ollama was already running independently.
+Ignored `.env` selects PostgreSQL on loopback port 55432. Original data remains
+in `data/private`, active ULB artifacts in `ml/artifacts`, PostgreSQL cluster in
+`.local/postgres`. To resume from this repository root:
 
 ```sh
 /opt/homebrew/opt/postgresql@17/bin/pg_ctl -D .local/postgres -l .local/postgres.log -o "-p 55432 -h 127.0.0.1 -k /private/tmp" start
@@ -93,110 +97,26 @@ PYTHONPATH=backend uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 # In another terminal: cd frontend && npm run dev
 ```
 
-`bootstrap.py` refuses to overwrite a non-synthetic active model;
-use separate database/artifact paths to set up a new synthetic test workspace.
-Default fresh-clone/Compose setup is synthetic, needs no private data, and trains
-its own model. For ordinary setup use README commands.
+For the verified installed Copilot, add `ARGUS_OLLAMA_ENABLED=true` and
+`ARGUS_OLLAMA_MODEL=qwen2.5:7b` to the API process environment. Ordinary fresh-clone
+and Compose setup remain synthetic and disabled-by-default without private data.
+`bootstrap.py` refuses to replace a non-synthetic active model. All project
+`sources/` reference files remain untouched. No credentials, private datasets,
+local database or model binary is committed; staged secret-pattern scans passed.
 
-## Explicit remaining limitations
+## Remaining limitations
 
-- Installed Ollama/model integration is unverified; enabled path uses a mock.
-- PDF reports and graph entity case links are planned, clearly labeled in UI/docs.
-- No authentication, authorization, schema migrations, bank connectivity,
-  compliance claim, calibrated probabilities or production assurance.
-- Imports/scoring are synchronous and memory-bound; no large-scale load testing.
-- Experiments are single-seed estimates without confidence intervals or external
-  validation. Dashboard metrics over imported training data are not held-out
-  research metrics; Laboratory reports are the benchmark evidence.
-
-## Enterprise upgrade — in progress
-
-Preserved the original ML artifacts, full ULB CSV, PostgreSQL database and all
-published benchmarks. Existing remote history is synchronized and the prior
-final CI run 40335394233 passed all four jobs.
-
-Phase 1 introduces a flat compact analyst design system, reusable UI primitives,
-keyboard navigation (Cmd/Ctrl+K, Escape), persistent density controls and a
-navigation command menu. Public Palantir references are recorded in UX_RESEARCH.md;
-no proprietary assets are copied. Frontend lint/typecheck, three component tests,
-production build and browser regression checks were executed for this milestone.
-Development browser tests use a separate synthetic database and artifact directory
-under `.local/upgrade-e2e*`, preserving the full research workspace.
-
-Next: bounded global search, saved server-side filters, richer transaction
-queries; additive case events/entity links; resizable workbench; graph traversal;
-installed Ollama verification, then final integration/screenshots/CI.
-
-Upgrade backend milestone: global search, shared validated transaction/export
-range filters, database-backed saved views, append-only case field/link events,
-timeline export, synthetic entity/case links, entity detail and bounded graph
-neighborhood traversal are implemented. All 20 backend tests passed on SQLite
-and PostgreSQL using isolated per-test schemas. Existing ULB data/model files and
-benchmark results remain unchanged. New tables are additive via create_all.
-
-Transaction intelligence UI now includes a persistent query builder, amount/time/
-score/label/provenance ranges, server-backed saved views, filter chips and matching
-CSV exports. Cmd/Ctrl+K now searches actual transactions, cases and synthetic
-entities and opens contextual records. Browser verification caught ambiguous
-names between a transaction and cases mentioning it; result controls now have
-explicit accessible type/name labels. The focused saved-view/search/export flow
-passed after correction; preceding five browser flows passed. Foundation/backend
-milestone CI runs 40342875329 and 40343465078 both passed all four jobs.
-
-Investigation workbench milestone: three linked panes (case queue, event timeline/
-analyst decision, contextual transaction/entity evidence), pointer/keyboard resize
-handles with persisted widths, deep case links, real status/priority change events
-and evidence exports. Tests exposed a stale-response/overlapping-save race; case
-loads now reject stale responses and editing/saving waits for completion. Both
-investigation browser workflows passed after the fix, including restart persistence,
-notes/decisions, timeline changes, synthetic entity links and resized panel state.
-Actual workbench screenshot reviewed in docs/screenshots/investigation-upgrade.png.
-
-Graph upgrade: root/depth neighborhood expansion, entity and relationship filters,
-shared-device structural cue, node/keyboard selector inspection, neighbor navigation,
-create/link investigations and bidirectional case/entity deep links are working.
-All data remains the separate synthetic SQL graph; no ULB identities or relationships
-are inferred. All eight Playwright flows passed, including graph-to-case-to-graph
-link persistence. Typecheck/lint/build passed and graph screenshot reviewed.
-
-Copilot backend upgrade: bounded read-only evidence selection, stored model scores,
-compatible SHAP (with version-match metadata), analyst records and explicitly
-synthetic entity sources. Structured JSON sections use source-ID constraints and
-server validation; unknown citation IDs are rejected. Initial free-text local
-model testing omitted citations, so free-text prompting was replaced with this
-structured protocol. All 22 backend tests passed on SQLite/PostgreSQL. A real
-qwen2.5:7b integration call cited only supplied source IDs and preserved database
-counts; metadata is in docs/research/ollama-integration.json. Valid citations do
-not guarantee factual correctness; generated text still needs analyst review.
-
-Copilot UI/Command Center milestone: real model browser verification passed with
-qwen2.5:7b: bounded structured context, validated source IDs, generation without
-note mutation, and explicit saving as a labeled LLM-generated case note. Actual
-screen reviewed in copilot-upgrade.png and metadata in ollama-ui-verification.json.
-Source selection is locked while a generation is pending. Model scores remain
-explicitly uncalibrated; valid citations do not guarantee every LLM statement.
-Command Center now includes recent persisted investigations, clickable chart/risk
-ranges linked to the transaction query builder, and keyboard-accessible range
-selection. Dialog focus is contained and Cmd/Ctrl+K replaces other overlays.
-All ten browser workflows, three component tests, lint/typecheck and build passed.
-
-Final usability verification: invalid range queries hide previous results and
-show a recoverable local error; correcting the range restores actual results.
-Global search clears stale results and displays its pending state. Malformed graph
-hashes cannot crash the explorer. All eleven default-mode browser flows passed;
-frontend lint/typecheck, three component tests and production build passed.
-
-CI browser setup observation: recent GitHub runs spent extended time in the
-external `playwright install --with-deps` step before any browser tests started;
-backend/frontend/Compose jobs passed. The browser job now uses verified preinstalled
-Google Chrome on ubuntu-24.04 via Playwright's supported `chrome` channel, printing
-its version explicitly. Local tests retain the downloaded Chromium default. No
-browser test is skipped; the revised CI job must run all eleven workflows.
-
-Full-data activation QA passed: all 284,366 original transaction rows, dataset CSV,
-active model binary/version, cases/notes, synthetic graph and both ULB benchmark
-reports matched before/after fingerprints exactly. Advanced query/export counts
-matched on actual ULB records. Mobile review caught the full 25-million-unit KPI
-overlapping its neighboring cell; it now uses a compact display with the exact
-value retained in accessible text/title. All KPI values fit their cells at 390px.
-Actual Command Center, explorer, SHAP and Laboratory screens were recaptured.
+- Research prototype: no authentication, authorization or multi-user isolation.
+  Saved views are shared in the local workspace. Existing-schema migrations,
+  immutable administrative audit storage and PDF reports remain future work.
+- Graph relationships are synthetic. Case links are analyst associations and do
+  not establish relationships between graph fixtures and ULB records.
+- Scores are uncalibrated. Single-seed benchmark estimates lack confidence
+  intervals/external deployment validation; full-data dashboard metrics include
+  training rows and are separate from held-out Laboratory reports.
+- LLM interpretations need analyst verification. Valid source IDs do not prove
+  factual correctness; other model families/configurations are unverified.
+  Context is deliberately bounded and truncation is disclosed.
+- Imports/scoring remain synchronous. No production load/security/compliance
+  claim. Browser coverage is Chromium/Chrome with tested responsive viewports,
+  not an exhaustive assistive-technology/device certification.

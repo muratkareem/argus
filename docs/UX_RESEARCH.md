@@ -14,3 +14,9 @@ restrained blue-gray/teal accents and reserved risk colors. Resizing, saved
 filters, search, graph traversal and linked evidence must perform real actions.
 ARGUS does not imply Palantir-level governance, permissions, enterprise scale or
 regulatory certification.
+
+The public Workshop screenshot and Gotham product demonstration were also
+inspected in a browser. Only general panel hierarchy, compact metadata and
+context-preserving navigation informed ARGUS. Gotham demonstration domain assets
+and marketing animations are not included. The public Gotham security overview
+was reviewed separately; ARGUS does not claim its enterprise security capabilities.

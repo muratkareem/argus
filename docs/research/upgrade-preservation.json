@@ -1,0 +1,21 @@
+{
+  "verified_at": "2026-10-26T15:53:55.333103+00:00",
+  "scope": "Before/after activating upgraded API schema and running read-only browser/API checks against preserved full-data workspace",
+  "unchanged": true,
+  "counts": {
+    "transactions": 284366,
+    "datasets": 3,
+    "cases": 1,
+    "notes": 1,
+    "entities": 31,
+    "relationships": 36
+  },
+  "stored_transaction_digest": "ccc028670d26f0b1e4a916c47f863cdfaaa8c6b4ead5312c628953ac4e8ef3ef",
+  "csv_sha256": "76274b691b16a6c49d3f159c883398e03ccd6d1ee12d9d8ee38f4b4b98551a89",
+  "active_model_version": "20261026T135110944835Z-6d0da1ed",
+  "active_model_sha256": "3e7ccfadbb7eea72aebf802ff3d6469d65f0189c356bf489f699d06a97a686d2",
+  "evaluation_sha256": {
+    "docs/research/ulb-stratified-evaluation.json": "8d667f1f49f97c73b25a75aac3e3186d1d943a3d5d66d52660f7128977532d71",
+    "docs/research/ulb-chronological-evaluation.json": "ce642092213ebab65f3c331b50cb35e79850ea406401648041137899bf26559d"
+  }
+}

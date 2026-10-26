@@ -67,8 +67,9 @@ an artificial merchant. All entities and edges persist in relationship tables.
 
 These graph transaction nodes are **not** ULB transactions or the scored synthetic
 CSV records. No geographical, account, card, device, or merchant evidence is
-inferred from anonymized ULB features. Graph entity case-linking is planned;
-scored transactions already support persistent investigation links.
+inferred from anonymized ULB features. Graph entities and scored transactions support persistent case links, with
+separate provenance. An analyst association does not establish a relationship
+between a synthetic entity and an ULB transaction.
 
 
 ## Verified benchmark input

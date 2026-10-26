@@ -45,3 +45,30 @@ label. JSON exports add export time and a research disclaimer. Model experiment
 JSON is downloadable from the Laboratory and contains measured evaluation time,
 dataset fingerprint, environment, provenance, partitions, and model metrics.
 PDF export is planned, not presented as implemented.
+
+
+## Analyst upgrade endpoints
+
+- `GET /api/v1/search?q=...`: bounded actual transaction/case/synthetic-entity search.
+- `GET/POST /api/v1/views`, `DELETE /api/v1/views/{id}`: shared local saved query configurations.
+- Transaction list/export accept `max_risk`, `min_amount`, `max_amount`,
+  `min_time`, `max_time`, `label`, `dataset_id` in addition to previous filters.
+  Minimums exceeding maximums return 422. Export applies the same query.
+- `GET /api/v1/cases/{id}/timeline`: actual creation/note timestamps plus recorded
+  status/priority/decision/link events. Earlier state transitions are not fabricated.
+- `POST /api/v1/cases/{id}/entities` with `{entity_id}`; case creation also accepts
+  `entity_ids`. Links are idempotent, persist and retain synthetic provenance.
+- `GET /api/v1/entities/{id}`: actual fixture properties, neighbors and case links.
+- `GET /api/v1/intelligence/graph`: `root`, `depth` (0–4), `kind`, `relation`,
+  `shared_only`. Structural cues are separate from ML fraud predictions.
+- `GET /api/v1/copilot/context?transaction_id=...&case_id=...`: bounded selected
+  evidence and source IDs, available even when local generation is disabled.
+- `POST /api/v1/copilot`: returns structured interpretation text, source records,
+  scope and citation audit. Unknown structured source IDs return 502. Valid IDs
+  are not proof that generated factual claims are correct. Context includes latest
+  four notes (800 characters each), first eight transaction links and first four
+  synthetic entities. The model has no database-write, SQL or shell tool.
+
+The UI can explicitly save an interpretation using the ordinary note API; the
+note is prefixed LLM-GENERATED and includes its model, timestamp and source IDs.
+This is an analyst action, separate from read-only generation.

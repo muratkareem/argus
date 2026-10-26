@@ -134,7 +134,11 @@ export function InvestigationWorkspace({
   const queue = (
     <Panel
       title="Investigation queue"
-      meta={<span className="mono muted">{cases.length} cases</span>}
+      meta={
+        <span className="mono muted">
+          {cases.length} case{cases.length === 1 ? "" : "s"}
+        </span>
+      }
     >
       <div className="queue-controls">
         <label className="search-input">

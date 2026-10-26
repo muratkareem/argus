@@ -34,8 +34,37 @@ metrics, and document investigations in a persistent database.
 - **Engineering:** PostgreSQL, Docker Compose, CI, backend/integration/ML tests,
   frontend component tests, Chromium browser workflows, responsive screenshots.
 
-Every navigation item has an implemented page. Graph entity case-linking and PDF
-reports are explicitly planned; the transaction investigation workflow works now.
+Every navigation item has an implemented page. Graph entity case links and the transaction investigation workflow are implemented.
+PDF reports remain planned.
+
+## Enterprise analyst workspace upgrade
+
+- **Command Center:** linked transaction/risk charts, accessible score-range exploration,
+  active-model metrics and recent persisted investigations.
+- **Transaction Intelligence:** query builder for score, amount, dataset time,
+  observed label and provenance; database-backed saved views; export/query parity.
+- **Investigation Workbench:** resizable queue, audit timeline and contextual
+  transaction/synthetic-entity panes; deep links, SHAP and explicit decisions.
+- **Graph Intelligence:** bounded neighborhood expansion, entity/relationship
+  filters, shared-device structural cues and bidirectional case/entity links.
+- **Evidence Copilot:** bounded read-only context, structured source-ID validation,
+  local model summaries and explicitly labeled generated-note saving. Real
+  `qwen2.5:7b` API and browser integration were verified using synthetic fixtures.
+- **Keyboard and accessibility:** Cmd/Ctrl+K global search, Escape, contained
+  dialog focus, keyboard-resizable separators and persistent display density.
+
+The upgrade extends the existing monolith. It preserves the ULB dataset, trained
+models, PostgreSQL records and benchmark reports. New analyst tables are additive;
+no existing model is retrained or data reimported by the upgrade.
+
+<details>
+<summary>Investigation, graph and live local Copilot screenshots</summary>
+
+![Resizable investigation workbench with synthetic evidence](docs/screenshots/investigation-upgrade.png)
+![Synthetic neighborhood and case links](docs/screenshots/graph-upgrade.png)
+![Real local qwen2.5:7b response over synthetic evidence](docs/screenshots/copilot-upgrade.png)
+
+</details>
 
 ## Quick start with Docker
 
@@ -216,15 +245,21 @@ Install and start Ollama separately, then:
 ollama pull llama3.2
 ```
 
-Set `ARGUS_OLLAMA_ENABLED=true` and optionally `ARGUS_OLLAMA_MODEL` in `.env`,
-then restart the native backend or recreate the Compose backend. Native default
+Set `ARGUS_OLLAMA_ENABLED=true` and choose `ARGUS_OLLAMA_MODEL` in `.env`.
+If `qwen2.5:7b` is already installed, set `ARGUS_OLLAMA_MODEL=qwen2.5:7b`; this
+is the locally verified model. Then
+restart the native backend or recreate the Compose backend. Native default
 URL is `http://127.0.0.1:11434`; Docker uses `host.docker.internal`. Linux Docker
 may need a host-gateway configuration. Supply an existing transaction/case ID
 in the Copilot page. No SQL or shell execution tool is exposed.
 
-Enabled/disabled API behavior is tested, with the enabled Ollama response mocked.
-An installed local model has not been integration-tested in this environment.
-LLM output can contain errors despite grounding instructions; verify every claim.
+Enabled/disabled behavior is tested without requiring a model in CI. A real
+installed `qwen2.5:7b` model was also verified through the API and browser: selected
+synthetic evidence, valid source IDs, generation without database writes, and an
+explicit labeled-note save. See [integration evidence](docs/research/ollama-integration.json)
+and [browser evidence](docs/research/ollama-ui-verification.json). Other model
+families are unverified. Valid source IDs do not guarantee every LLM claim; verify
+interpretations against the supplied evidence. Context truncation is disclosed.
 
 ## Verification
 
@@ -253,7 +288,8 @@ database. CI uses disposable databases and needs no private dataset or credentia
 GitHub Actions also builds and starts the complete Compose stack and checks real
 PostgreSQL connectivity, synthetic ML inference, and the frontend proxy.
 
-See [implementation status and verification evidence](docs/IMPLEMENTATION_STATUS.md)
+See the [upgrade report and commit list](docs/UPGRADE_REPORT.md) and
+[implementation status and verification evidence](docs/IMPLEMENTATION_STATUS.md)
 for current pass/fail results and platform-specific limits.
 
 ## Limitations and roadmap
@@ -267,8 +303,8 @@ folder. CORS is restricted, queries are parameterized, uploads are validated and
 bounded, and model/data directories are excluded from publication.
 
 The graph is a **separate synthetic relationship fixture**, not inferred ULB
-relationships. ULB results above were measured; installed-Ollama integration remains unverified.
-PDF export and graph entity case links are planned. See the [roadmap](docs/ROADMAP.md).
+relationships. ULB results above were measured; live qwen2.5:7b integration is verified.
+PDF export is planned; graph entity case links are implemented. See the [roadmap](docs/ROADMAP.md).
 
 ## License and acknowledgements
 

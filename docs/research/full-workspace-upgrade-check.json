@@ -1,0 +1,22 @@
+{
+  "verified_at": "2026-10-26T15:41:43.730Z",
+  "stored_records": 284366,
+  "ulb_records": 283726,
+  "query_times_ms": {
+    "overview": 224,
+    "filtered_transactions": 5,
+    "search": 96,
+    "neighborhood": 2
+  },
+  "filtered_export_rows": 96,
+  "filtered_export_matches": true,
+  "mobile_pages_without_document_overflow": [
+    "transactions",
+    "investigations/1",
+    "graph/device-1",
+    "copilot/1"
+  ],
+  "mobile_kpi_values_fit": true,
+  "page_errors": [],
+  "limitation": "Single-host observations, not throughput or concurrency guarantees."
+}
