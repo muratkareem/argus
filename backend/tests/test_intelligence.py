@@ -101,3 +101,45 @@ def test_timeline_and_synthetic_entity_links_are_persistent_and_idempotent(
         assert len(report["entities"]) == 2
         assert all(e["provenance"] == "synthetic" for e in report["entities"])
         assert report["timeline"]
+
+
+def test_copilot_context_is_available_without_llm_and_bounded(client, imported):
+    tx = client.get("/api/v1/transactions").json()["items"][0]
+    case = client.post(
+        "/api/v1/cases", json={"title": "Evidence context", "transaction_ids": [tx["id"]]}
+    ).json()
+    for _ in range(6):
+        client.post(f"/api/v1/cases/{case['id']}/notes", json={"body": "a" * 1200})
+    result = client.get(f"/api/v1/copilot/context?case_id={case['id']}&transaction_id={tx['id']}")
+    assert result.status_code == 200, result.text
+    data = result.json()
+    assert data["scope"]["case_id"] == case["id"]
+    assert len(data["evidence"]["analyst_case"]["notes"]) == 4
+    assert data["evidence"]["analyst_case"]["notes_total"] == 6
+    assert all(len(n["body"]) <= 800 for n in data["evidence"]["analyst_case"]["notes"])
+    assert any(s["id"] == f"transaction:{tx['id']}" for s in data["sources"])
+    assert data["evidence"]["model_explanation"]["matches_stored_prediction"]
+    assert client.get("/api/v1/copilot/context").status_code == 422
+    assert client.get("/api/v1/copilot/context?case_id=999999").status_code == 404
+
+
+def test_structured_copilot_rejects_unknown_citations():
+    import json
+
+    import pytest
+    from app.copilot import render_interpretation
+    from fastapi import HTTPException
+
+    sections = {
+        "recorded_facts": "Recorded transaction.",
+        "model_output": "Uncalibrated.",
+        "uncertainty": "Unknown.",
+        "next_steps": "Review evidence.",
+        "citations": ["transaction:1"],
+    }
+    text, audit = render_interpretation(json.dumps(sections), [{"id": "transaction:1"}])
+    assert "[transaction:1]" in text and audit["status"] == "validated_ids"
+    sections["citations"] = ["transaction:999"]
+    with pytest.raises(HTTPException) as exc:
+        render_interpretation(json.dumps(sections), [{"id": "transaction:1"}])
+    assert exc.value.status_code == 502

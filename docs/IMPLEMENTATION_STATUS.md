@@ -158,3 +158,13 @@ create/link investigations and bidirectional case/entity deep links are working.
 All data remains the separate synthetic SQL graph; no ULB identities or relationships
 are inferred. All eight Playwright flows passed, including graph-to-case-to-graph
 link persistence. Typecheck/lint/build passed and graph screenshot reviewed.
+
+Copilot backend upgrade: bounded read-only evidence selection, stored model scores,
+compatible SHAP (with version-match metadata), analyst records and explicitly
+synthetic entity sources. Structured JSON sections use source-ID constraints and
+server validation; unknown citation IDs are rejected. Initial free-text local
+model testing omitted citations, so free-text prompting was replaced with this
+structured protocol. All 22 backend tests passed on SQLite/PostgreSQL. A real
+qwen2.5:7b integration call cited only supplied source IDs and preserved database
+counts; metadata is in docs/research/ollama-integration.json. Valid citations do
+not guarantee factual correctness; generated text still needs analyst review.

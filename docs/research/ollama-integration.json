@@ -1,0 +1,35 @@
+{
+  "verified_at": "2026-10-26T15:18:27.123100+00:00",
+  "model": "qwen2.5:7b",
+  "model_digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+  "data_provenance": "synthetic fixtures only",
+  "sources": [
+    {
+      "id": "transaction:528",
+      "kind": "Transaction",
+      "label": "TX-000528",
+      "provenance": "synthetic",
+      "model_version": "20261026T144510320720Z-2ca1e532"
+    },
+    {
+      "id": "case:11",
+      "kind": "Case",
+      "label": "Workbench evidence 1793027792532",
+      "provenance": "analyst record"
+    },
+    {
+      "id": "entity:device-1",
+      "kind": "Entity",
+      "label": "Device 1",
+      "provenance": "synthetic"
+    }
+  ],
+  "response_characters": 996,
+  "cited_source_ids": [
+    "case:11",
+    "entity:device-1",
+    "transaction:528"
+  ],
+  "database_counts_unchanged": true,
+  "limitations": "A successful integration call and valid source IDs do not guarantee every generated statement is correct."
+}
