@@ -1,0 +1,76 @@
+import json
+
+import numpy as np
+import pandas as pd
+import pytest
+from app.ml import FEATURES, Predictor, metrics, synthetic, train, validate_frame
+
+
+def test_training_and_inference_are_consistent_and_provenance_guarded(artifacts):
+    predictor = Predictor(artifacts)
+    frame = synthetic(12, seed=938)
+    bundle, scores = predictor.predict(frame, "synthetic")
+    loaded_again, second = Predictor(artifacts).predict(frame, "synthetic")
+    np.testing.assert_array_equal(scores, second)
+    assert bundle["version"] == loaded_again["version"]
+    with pytest.raises(ValueError, match="cannot score"):
+        predictor.predict(frame, "ulb")
+    report = json.loads((artifacts / bundle["version"] / "report.json").read_text())
+    assert {m["name"] for m in report["models"]} == {
+        "Logistic Regression",
+        "Random Forest",
+        "XGBoost",
+    }
+    assert sum(p["rows"] for p in report["partitions"].values()) == report["rows"]
+    expected = max(report["models"], key=lambda m: m["validation_average_precision"])["name"]
+    assert report["selected_model"] == expected
+    for model in report["models"]:
+        assert 0 <= model["threshold"] <= 1
+        assert (
+            sum(map(sum, model["test"]["confusion_matrix"])) == report["partitions"]["test"]["rows"]
+        )
+
+
+def test_shap_explains_actual_model(artifacts):
+    result = Predictor(artifacts).explain(
+        synthetic(1, seed=984)[FEATURES].iloc[0].to_dict(), "synthetic"
+    )
+    assert len(result["features"]) == 30
+    raw = result["base_value"] + sum(f["contribution"] for f in result["features"])
+    # Linear and XGBoost raw SHAP output is a logit; forest output is probability.
+    candidates = [raw, 1 / (1 + np.exp(-raw))]
+    assert min(abs(s - result["risk_score"]) for s in candidates) < 1e-5
+
+
+def test_validation_rejects_malformed_data():
+    with pytest.raises(ValueError, match="Missing columns"):
+        validate_frame(pd.DataFrame({"Amount": [1]}))
+    df = synthetic(100)
+    df.loc[0, "V1"] = np.nan
+    with pytest.raises(ValueError, match="non-finite"):
+        validate_frame(df)
+    df = synthetic(100)
+    df.loc[0, "Class"] = 2
+    with pytest.raises(ValueError, match="binary"):
+        validate_frame(df)
+
+
+def test_duplicate_removal_and_chronological_split(tmp_path):
+    df = synthetic(500)
+    df = pd.concat([df, df.iloc[:8]])
+    report = train(df, tmp_path, "synthetic", split="chronological")
+    assert report["duplicates_removed"] == 8
+    assert report["split"] == "chronological"
+    assert sum(v["rows"] for v in report["partitions"].values()) == 500
+    conflicting = synthetic(150)
+    copy = conflicting.iloc[[0]].copy()
+    copy["Class"] = 1 - copy["Class"]
+    with pytest.raises(ValueError, match="conflicting"):
+        train(pd.concat([conflicting, copy]), tmp_path, "synthetic")
+
+
+def test_metrics_do_not_reward_majority_accuracy():
+    result = metrics([0] * 99 + [1], np.array([0.01] * 100), 0.5)
+    assert result["recall"] == 0
+    assert result["f1"] == 0
+    assert result["confusion_matrix"] == [[99, 0], [1, 0]]
