@@ -7,6 +7,7 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:5173",
     headless: true,
+    channel: process.env.ARGUS_BROWSER_CHANNEL || undefined,
     viewport: { width: 1440, height: 1050 },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",

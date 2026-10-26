@@ -49,7 +49,7 @@ jobs:
       - run: npm run build
       - run: npm audit --audit-level=high
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -63,10 +63,12 @@ jobs:
       - run: PYTHONPATH=backend uv run python scripts/bootstrap.py
       - run: npm ci
         working-directory: frontend
-      - run: npx playwright install --with-deps chromium
-        working-directory: frontend
+      - name: Verify image-provided Chrome
+        run: google-chrome --version
       - run: npm run test:e2e
         working-directory: frontend
+        env:
+          ARGUS_BROWSER_CHANNEL: chrome
       - uses: actions/upload-artifact@v4
         if: always()
         with:

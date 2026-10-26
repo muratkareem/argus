@@ -185,3 +185,10 @@ show a recoverable local error; correcting the range restores actual results.
 Global search clears stale results and displays its pending state. Malformed graph
 hashes cannot crash the explorer. All eleven default-mode browser flows passed;
 frontend lint/typecheck, three component tests and production build passed.
+
+CI browser setup observation: recent GitHub runs spent extended time in the
+external `playwright install --with-deps` step before any browser tests started;
+backend/frontend/Compose jobs passed. The browser job now uses verified preinstalled
+Google Chrome on ubuntu-24.04 via Playwright's supported `chrome` channel, printing
+its version explicitly. Local tests retain the downloaded Chromium default. No
+browser test is skipped; the revised CI job must run all eleven workflows.
