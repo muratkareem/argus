@@ -109,3 +109,14 @@ def test_explanation_supports_every_candidate_algorithm(tmp_path, kind):
     raw = result["base_value"] + sum(f["contribution"] for f in result["features"])
     reconstructed = raw if kind == "forest" else 1 / (1 + np.exp(-raw))
     assert reconstructed == pytest.approx(result["risk_score"], abs=1e-5)
+
+
+def test_saved_pr_curve_preserves_endpoints_and_recall_changes():
+    # Thousands of low-score negatives must not consume all sampled curve points.
+    y = np.array([0] * 3000 + [1] * 20)
+    scores = np.r_[np.linspace(0, 0.2, 3000), np.linspace(0.4, 0.99, 20)]
+    curve = metrics(y, scores, 0.5)["pr_curve"]
+    assert curve[0]["recall"] == 1
+    assert curve[-1] == {"recall": 0.0, "precision": 1.0}
+    assert any(p["recall"] < 0.5 and p["precision"] == 1 for p in curve)
+    assert len(curve) <= 400

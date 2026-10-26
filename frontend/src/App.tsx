@@ -436,6 +436,7 @@ export default function App() {
             refresh();
           }}
           fail={fail}
+          maxUploadMiB={settings?.max_upload_mib ?? 192}
         />
       )}
       {selectedTx != null && (
@@ -570,7 +571,13 @@ function OverviewPage({
                     axisLine={false}
                     minTickGap={40}
                   />
-                  <YAxis tickLine={false} axisLine={false} />
+                  <YAxis
+                    tickFormatter={(value: number) =>
+                      value >= 1000 ? `${value / 1000}k` : String(value)
+                    }
+                    tickLine={false}
+                    axisLine={false}
+                  />
                   <Tooltip
                     contentStyle={tipStyle}
                     labelFormatter={(v) => `Hour ${v}`}
@@ -622,7 +629,13 @@ function OverviewPage({
                   tickLine={false}
                   axisLine={false}
                 />
-                <YAxis tickLine={false} axisLine={false} />
+                <YAxis
+                  tickFormatter={(value: number) =>
+                    value >= 1000 ? `${value / 1000}k` : String(value)
+                  }
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <Tooltip contentStyle={tipStyle} />
                 <Bar
                   isAnimationActive={false}
@@ -696,7 +709,11 @@ function OverviewPage({
               >
                 Open ML Laboratory <ArrowRight size={13} />
               </button>
-              <small>Synthetic results do not establish ULB performance.</small>
+              <small>
+                {experiment.provenance === "synthetic"
+                  ? "Synthetic results do not establish ULB performance."
+                  : "Held-out ULB test metrics. Live-system generalization is unverified."}
+              </small>
             </div>
           ) : (
             <Empty>Train a model using the README instructions.</Empty>
@@ -883,10 +900,12 @@ function UploadModal({
   close,
   done,
   fail,
+  maxUploadMiB,
 }: {
   close: () => void;
   done: (s: string) => void;
   fail: (e: unknown) => void;
+  maxUploadMiB: number;
 }) {
   const [file, setFile] = useState<File | null>(null),
     [source, setSource] = useState("synthetic"),
@@ -936,8 +955,8 @@ function UploadModal({
         </div>
         <div className="modal-body">
           <p>
-            CSV schema: Time, V1–V28, Amount, and optional Class. Maximum 64
-            MiB. Uploaded data stays in your configured database.
+            CSV schema: Time, V1–V28, Amount, and optional Class. Maximum{" "}
+            {maxUploadMiB} MiB. Uploaded data stays in your configured database.
           </p>
           <label className="field">
             Data provenance
@@ -1497,7 +1516,7 @@ function Laboratory({
         <Panel title={`${model.name} · Precision-recall`}>
           <div className="chart-subtitle">
             Held-out test data · threshold {model.threshold.toFixed(4)} · FPR{" "}
-            {percent(model.test.false_positive_rate)}
+            {(model.test.false_positive_rate * 100).toFixed(3)}%
           </div>
           <div className="chart">
             <ResponsiveContainer width="100%" height="100%">

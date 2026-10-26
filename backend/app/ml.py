@@ -74,7 +74,11 @@ def metrics(y, scores, threshold):
     pred = scores >= threshold
     tn, fp, fn, tp = confusion_matrix(y, pred, labels=[0, 1]).ravel()
     p, r, _ = precision_recall_curve(y, scores)
-    step = max(1, len(p) // 180)
+    changes = np.flatnonzero(np.diff(r))
+    curve_indices = np.unique(np.r_[0, changes, changes + 1, len(r) - 1])
+    curve_indices = curve_indices[
+        np.linspace(0, len(curve_indices) - 1, min(len(curve_indices), 400), dtype=int)
+    ]
     return {
         "precision": float(precision_score(y, pred, zero_division=0)),
         "recall": float(recall_score(y, pred, zero_division=0)),
@@ -84,7 +88,8 @@ def metrics(y, scores, threshold):
         "false_positive_rate": float(fp / max(tn + fp, 1)),
         "confusion_matrix": [[int(tn), int(fp)], [int(fn), int(tp)]],
         "pr_curve": [
-            {"recall": float(a), "precision": float(b)} for a, b in zip(r[::step], p[::step])
+            {"recall": float(a), "precision": float(b)}
+            for a, b in zip(r[curve_indices], p[curve_indices])
         ],
     }
 

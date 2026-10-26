@@ -12,7 +12,7 @@ metrics, and document investigations in a persistent database.
 > Model scores are uncalibrated. No banking-grade security, compliance, or
 > production fraud-prevention claim is made.
 
-![Actual ARGUS workspace with synthetic records](docs/screenshots/overview.png)
+![Actual ARGUS workspace with ULB benchmark and labeled synthetic records](docs/screenshots/overview.png)
 
 ## What works
 
@@ -163,7 +163,7 @@ Full thresholds, confusion matrices, PR curves, parameters, provenance, and
 versions: [stratified report](docs/research/ulb-stratified-evaluation.json),
 [chronological report](docs/research/ulb-chronological-evaluation.json), and
 [official source metadata / CSV checksum](docs/research/ulb-source.json).
-The measured training runs took 26.5 and 27.3 seconds on this Apple Silicon host
+The measured training runs took 26.0 and 28.4 seconds on this Apple Silicon host
 with two estimator threads; other environments will differ.
 
 ### Actual synthetic research run

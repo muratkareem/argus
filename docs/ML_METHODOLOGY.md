@@ -55,7 +55,8 @@ supports grouped-by-account validation because account IDs are absent.
 
 Saved metrics: precision, recall, F1, average precision (reported as PR-AUC/AP),
 ROC-AUC, confusion matrix in `[[TN, FP], [FN, TP]]` order, false-positive rate,
-and sampled precision-recall points. AP uses scikit-learn's average precision,
+and precision-recall points sampled at recall transitions (up to 400), preserving
+both endpoints and rare positive transitions. AP uses scikit-learn's average precision,
 not trapezoidal integration of the PR curve. These are distinct definitions.
 
 With ~0.17% ULB fraud, predicting every transaction legitimate produces very
@@ -114,7 +115,7 @@ single-seed estimates without confidence intervals or deployment validation.
 
 See `docs/research/ulb-stratified-evaluation.json`,
 `docs/research/ulb-chronological-evaluation.json`, and `ulb-source.json` for exact
-measurements and provenance. Training completed in 26.456 and 27.327 seconds on
+measurements and provenance. Training completed in 26.033 and 28.381 seconds on
 this host; this is one observation, not a performance guarantee.
 
 The interactive database may include training, validation and test rows from an

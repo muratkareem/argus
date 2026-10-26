@@ -42,11 +42,13 @@ def main():
             # Write a fixed local destination instead of extracting user-controlled paths.
             with bundle.open(members[0]) as source, target.open("xb") as out:
                 shutil.copyfileobj(source, out)
+        with target.open("rb") as source:
+            checksum = hashlib.file_digest(source, "sha256").hexdigest()
         metadata = {
             "source": URL,
             "downloaded_at": datetime.now(timezone.utc).isoformat(),
             "csv_bytes": target.stat().st_size,
-            "csv_sha256": hashlib.file_digest(target.open("rb"), "sha256").hexdigest(),
+            "csv_sha256": checksum,
             "redistributed": False,
         }
         (args.directory / "source.json").write_text(json.dumps(metadata, indent=2))

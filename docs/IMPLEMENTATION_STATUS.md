@@ -46,7 +46,7 @@ Official Kaggle GET download succeeded without credentials. CSV stays ignored at
 
 ## Executed verification
 
-- 15 pytest tests passed on SQLite and 15 on PostgreSQL 17, including API/CSV,
+- 16 pytest tests passed on SQLite and 16 on PostgreSQL 17, including API/CSV,
   ML smoke, inference consistency, three-algorithm SHAP and case persistence.
 - Ruff lint/format and Python compile checks passed.
 - 3 Vitest component tests, ESLint/TypeScript and Vite production build passed.
@@ -66,14 +66,17 @@ Official Kaggle GET download succeeded without credentials. CSV stays ignored at
   Docker Compose build/start, PostgreSQL health, 600 demo rows scored through the
   frontend API proxy, backend tests, browser flows, frontend checks/audit.
   Evidence: https://github.com/muratkareem/argus/actions/runs/40332175925
-- Latest full-ULB/SQL-aggregation milestone has passed its local regression checks;
-  its publication and final CI observation follow this status update.
+- Full-ULB/SQL milestone `dcfa217`: all four CI jobs passed again.
+  Evidence: https://github.com/muratkareem/argus/actions/runs/40333965624
+- Repeated full-data runs reproduced every candidate’s evaluation metrics exactly.
+  PR plot sampling now preserves recall transitions and endpoints, with a new
+  regression test. Final corrected-report CI observation follows publication.
 
 ## Git and continuation
 
 Account verified as muratkareem. Repository was absent and created public.
 No existing remote work overwritten. Commits `971d2fc` (backend/ML) and
-`d08d46e` (analyst workspace/Compose/CI) were pushed. Credential-pattern checks
+`d08d46e` (analyst workspace/Compose/CI), and `dcfa217` (full ULB benchmark) were pushed. Credential-pattern checks
 passed before commits. Read-only ChatGPT project `sources/` untouched.
 
 Local ignored `.env` selects the task-owned PostgreSQL cluster at loopback 55432.
