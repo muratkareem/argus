@@ -53,7 +53,8 @@ export function TransactionIntelligence({
     [views, setViews] = useState<View[]>([]),
     [viewId, setViewId] = useState(""),
     [name, setName] = useState(""),
-    [saving, setSaving] = useState(false);
+    [saving, setSaving] = useState(false),
+    [queryError, setQueryError] = useState("");
   const params = new URLSearchParams(
     Object.entries(filters).filter(([, v]) => v !== "" && v !== "all"),
   );
@@ -78,6 +79,8 @@ export function TransactionIntelligence({
   }, []);
   useEffect(() => {
     let cancelled = false;
+    setQueryError("");
+    setData(null);
     const timer = setTimeout(
       () =>
         api<{ items: Tx[]; total: number }>(
@@ -86,7 +89,9 @@ export function TransactionIntelligence({
           .then((result) => {
             if (!cancelled) setData(result);
           })
-          .catch(fail),
+          .catch((error) => {
+            if (!cancelled) setQueryError(error.message);
+          }),
       180,
     );
     return () => {
@@ -94,6 +99,7 @@ export function TransactionIntelligence({
       clearTimeout(timer);
     };
   }, [key, page, revision]);
+
   async function save() {
     setSaving(true);
     try {
@@ -356,7 +362,16 @@ export function TransactionIntelligence({
             </button>
           ))}
         </div>
-        {data ? (
+        {queryError ? (
+          <div className="query-error" role="alert">
+            <strong>Invalid transaction query</strong>
+            <p>{queryError}</p>
+            <span>
+              Adjust the filters or reset the query. Previous results are
+              hidden.
+            </span>
+          </div>
+        ) : data ? (
           <>
             <TxTable items={data.items} onSelect={onSelect} />
             <div className="pagination">

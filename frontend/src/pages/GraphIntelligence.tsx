@@ -27,8 +27,13 @@ type EntityDetail = NodeData & {
   neighbors: NodeData[];
   case_ids: number[];
 };
-const selectedRoot = () =>
-  decodeURIComponent(location.hash.split("/")[1] ?? "");
+const selectedRoot = () => {
+  try {
+    return decodeURIComponent(location.hash.split("/")[1] ?? "");
+  } catch {
+    return "";
+  }
+};
 export function GraphIntelligence({
   fail,
   notify,

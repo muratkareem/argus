@@ -13,7 +13,8 @@ export function CommandMenu({
 }) {
   const [q, setQ] = useState(""),
     [results, setResults] = useState<SearchResult[]>([]),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [searching, setSearching] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement;
@@ -23,6 +24,8 @@ export function CommandMenu({
   useEffect(() => {
     let cancelled = false;
     setError("");
+    setResults([]);
+    setSearching(Boolean(q.trim()));
     if (!q.trim()) {
       setResults([]);
       return;
@@ -33,10 +36,16 @@ export function CommandMenu({
           "/search?q=" + encodeURIComponent(q.trim()),
         )
           .then((d) => {
-            if (!cancelled) setResults(d.results);
+            if (!cancelled) {
+              setResults(d.results);
+              setSearching(false);
+            }
           })
           .catch((e) => {
-            if (!cancelled) setError(e.message);
+            if (!cancelled) {
+              setError(e.message);
+              setSearching(false);
+            }
           }),
       180,
     );
@@ -103,7 +112,12 @@ export function CommandMenu({
                   <ArrowRight size={14} />
                 </button>
               ))}
-              {!results.length && !error && (
+              {searching && (
+                <p className="muted padded" role="status">
+                  Searching stored records…
+                </p>
+              )}
+              {!searching && !results.length && !error && (
                 <p className="muted padded">No matching records.</p>
               )}
               {error && (

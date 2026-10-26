@@ -1622,3 +1622,25 @@ footer {
     gap: 4px;
   }
 }
+.query-error {
+  padding: 32px 22px;
+  min-height: 200px;
+  border-top: 1px solid #664943;
+  background: #251c22;
+  color: #caa9a1;
+  font-size: 11px;
+  line-height: 1.9;
+}
+.query-error strong {
+  font-size: 12px;
+  font-weight: 500;
+  color: #e0b0a3;
+}
+.query-error p {
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.query-error span {
+  font-size: 10px;
+  color: #a78e89;
+}

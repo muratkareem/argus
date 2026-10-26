@@ -179,3 +179,9 @@ Command Center now includes recent persisted investigations, clickable chart/ris
 ranges linked to the transaction query builder, and keyboard-accessible range
 selection. Dialog focus is contained and Cmd/Ctrl+K replaces other overlays.
 All ten browser workflows, three component tests, lint/typecheck and build passed.
+
+Final usability verification: invalid range queries hide previous results and
+show a recoverable local error; correcting the range restores actual results.
+Global search clears stale results and displays its pending state. Malformed graph
+hashes cannot crash the explorer. All eleven default-mode browser flows passed;
+frontend lint/typecheck, three component tests and production build passed.

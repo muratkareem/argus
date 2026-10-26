@@ -417,3 +417,20 @@ test("Command Center risk exploration links to validated transaction filters", a
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
 });
+
+test("invalid ranges hide stale results and recover after correction", async ({
+  page,
+}) => {
+  await page.goto("/#transactions");
+  await page.getByLabel("Minimum amount").fill("500");
+  await page.getByLabel("Maximum amount").fill("1");
+  await expect(page.getByRole("alert")).toContainText(
+    "Invalid transaction query",
+  );
+  await expect(page.getByRole("button", { name: /TX-\d+/ })).toHaveCount(0);
+  await page.getByLabel("Maximum amount").fill("1000");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /TX-\d+/ }).first(),
+  ).toBeVisible();
+});
