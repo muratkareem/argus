@@ -6,8 +6,10 @@ Detection Using Transaction Data.
 ## Source and validation
 
 The intended benchmark is the [ULB / Worldline credit card fraud dataset](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud).
-An authorized local copy must be supplied separately. The repository does not
-redistribute it, use a mirror to bypass access, or claim benchmark results.
+The official public Kaggle download was successfully retrieved on 26 October
+2026 without credentials. The CSV stays in ignored `data/private/`; no mirror or
+access bypass was used. This repository publishes derived evaluation reports
+and source checksum metadata, not the dataset.
 
 Features are `Time`, `V1`–`V28`, `Amount`; target `Class` is binary. Training
 rejects absent/extra columns, nonnumeric/missing/nonfinite values, negative
@@ -94,3 +96,28 @@ Repeated runs retain versions; scores are reproducible with the locked dependenc
 versions and seed, allowing for platform floating-point differences. Timestamps
 and measured durations will vary. Confidence intervals, calibration, broader
 search, external validation and drift monitoring remain future research work.
+
+
+## Actual ULB experiments (26 October 2026)
+
+Official input: 284,807 rows; 1,081 duplicate feature rows removed; 283,726 unique
+rows including 473 frauds. Both experiments use the same normalized dataset hash.
+Stratified train/validation/test fraud counts are 284/94/95; chronological counts
+are 342/57/74. Chronological cutoffs keep equal timestamps together.
+
+The stratified validation selection chose XGBoost: held-out precision .9474,
+recall .7579, F1 .8421, AP .8069, ROC-AUC .9793. The chronological validation
+selection chose Logistic Regression: held-out precision .9423, recall .6622,
+F1 .7778, AP .7475, ROC-AUC .9818. Other candidates' test results are all retained;
+a higher test AP did not retroactively change selection. These experiments are
+single-seed estimates without confidence intervals or deployment validation.
+
+See `docs/research/ulb-stratified-evaluation.json`,
+`docs/research/ulb-chronological-evaluation.json`, and `ulb-source.json` for exact
+measurements and provenance. Training completed in 26.456 and 27.327 seconds on
+this host; this is one observation, not a performance guarantee.
+
+The interactive database may include training, validation and test rows from an
+imported full CSV. Dashboard labeled-data detection rate is therefore **not** an
+unseen-test metric. Only the Laboratory's saved held-out reports support the
+benchmark claims above. Synthetic and ULB score versions remain separately labeled.

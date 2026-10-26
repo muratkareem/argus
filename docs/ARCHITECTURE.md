@@ -63,8 +63,8 @@ execution, compliance claim, or arbitrary SQL/shell tool is provided. LLM
 interpretations are not evidence and may be wrong.
 
 Schema initialization uses SQLAlchemy `create_all`; existing-schema upgrades
-require a reviewed migration before deployment. Imports/scoring and dashboard
-aggregation are synchronous and memory-bound: adequate for a research dataset,
-not a high-throughput production ingestion service. Full ULB runtime/memory
-performance has not been measured. No background worker, model registry service,
+require a reviewed migration before deployment. Imports/scoring are synchronous and memory-bound; dashboard metrics use SQL
+aggregations to avoid hydrating the full dataset. Full ULB training was measured
+in two runs, but memory profiling and throughput guarantees are not provided.
+This is not a high-throughput production ingestion service. No background worker, model registry service,
 calibration service, or automatic retraining is claimed.

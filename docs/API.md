@@ -9,7 +9,7 @@ use only locally or in a trusted private research environment.
 | GET | `/health` | Database connectivity and backend status |
 | GET | `/settings` | Nonsecret runtime settings |
 | GET | `/datasets` | Imported dataset provenance and counts |
-| POST | `/datasets/upload` | Multipart `file` + `provenance=ulb\|synthetic`; 64 MiB limit |
+| POST | `/datasets/upload` | Multipart `file` + `provenance=ulb\|synthetic`; 192 MiB limit |
 | POST | `/datasets/{id}/score` | Explicitly rescore a dataset with matching active model |
 | GET | `/transactions` | `q`, `flagged`, `provenance`, `min_risk`, `sort`, `direction`, `page`, `page_size` |
 | GET | `/transactions/export` | Matching `q`, `flagged`, `provenance`, `min_risk`; `format=csv\|json` |

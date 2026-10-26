@@ -112,11 +112,15 @@ item. Run native commands from the root so artifact/database paths agree.
 
 The intended benchmark is the [ULB / Worldline dataset on Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud):
 284,807 transactions and 492 fraud cases, with Time, Amount, V1–V28 and Class.
-The repository does not contain this dataset or claim results on it. Download
-through the source's authorized route after reviewing its terms. See
+The repository does not redistribute this dataset. Actual measured benchmark
+reports are published below. Download through the source's authorized route after
+reviewing its terms. See
 [dataset import instructions](docs/DATASETS.md).
 
 ```sh
+# Official public Kaggle route; refuses to overwrite existing data
+uv run python scripts/download_ulb.py
+
 # Reproducible artificial-data experiment
 PYTHONPATH=backend uv run python -m app.ml --synthetic
 
@@ -133,6 +137,34 @@ before splitting; conflicting duplicate labels are rejected during training.
 Preprocessing fits only training data. Each algorithm has two parameter candidates,
 selected by validation AP. Validation F1 chooses its threshold; validation AP
 chooses the algorithm before test evaluation. The Laboratory reads saved reports.
+
+### Actual ULB benchmark
+
+The official Kaggle download was accessible on 26 October 2026 without credentials.
+The 150,828,752-byte CSV contained 284,807 rows. Removing 1,081 feature-identical
+duplicates left **283,726 transactions and 473 frauds** before splitting. The
+stratified held-out test contains 56,746 rows / 95 frauds; the chronological test
+contains 56,746 rows / 74 frauds. No preprocessing, tuning, or threshold selection
+uses these test partitions.
+
+| Split | Algorithm | Test precision | Test recall | Test F1 | Test AP | Test ROC-AUC |
+|---|---|---:|---:|---:|---:|---:|
+| Stratified | Logistic Regression | 0.8875 | 0.7474 | 0.8114 | 0.7309 | 0.9670 |
+| Stratified | Random Forest | 0.9200 | 0.7263 | 0.8118 | 0.8389 | 0.9757 |
+| Stratified | XGBoost **(validation-selected)** | 0.9474 | 0.7579 | 0.8421 | 0.8069 | 0.9793 |
+| Chronological | Logistic Regression **(validation-selected)** | 0.9423 | 0.6622 | 0.7778 | 0.7475 | 0.9818 |
+| Chronological | Random Forest | 0.8871 | 0.7432 | 0.8088 | 0.8124 | 0.9546 |
+| Chronological | XGBoost | 0.9123 | 0.7027 | 0.7939 | 0.7834 | 0.9804 |
+
+These are single-seed research measurements, not production performance promises.
+The selected algorithms use **validation** AP, even when another algorithm has
+higher test AP. Temporal differences and small positive counts limit conclusions.
+Full thresholds, confusion matrices, PR curves, parameters, provenance, and
+versions: [stratified report](docs/research/ulb-stratified-evaluation.json),
+[chronological report](docs/research/ulb-chronological-evaluation.json), and
+[official source metadata / CSV checksum](docs/research/ulb-source.json).
+The measured training runs took 26.5 and 27.3 seconds on this Apple Silicon host
+with two estimator threads; other environments will differ.
 
 ### Actual synthetic research run
 
@@ -235,7 +267,7 @@ folder. CORS is restricted, queries are parameterized, uploads are validated and
 bounded, and model/data directories are excluded from publication.
 
 The graph is a **separate synthetic relationship fixture**, not inferred ULB
-relationships. No ULB benchmark or installed-Ollama result has been fabricated.
+relationships. ULB results above were measured; installed-Ollama integration remains unverified.
 PDF export and graph entity case links are planned. See the [roadmap](docs/ROADMAP.md).
 
 ## License and acknowledgements

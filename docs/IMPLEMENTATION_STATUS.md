@@ -1,57 +1,96 @@
 # ARGUS implementation status
 
-Last updated: 26 October 2026.
+Updated: 26 October 2026. Functional MVP implemented and published at
+https://github.com/muratkareem/argus.
 
-## Implemented and verified locally
+## Working modules
 
-- Reproducible Logistic Regression / Random Forest / XGBoost pipeline; validation
-  tuning, thresholds and algorithm selection; held-out metrics; chronological
-  option; immutable artifacts; actual inference and provenance guards.
-- CSV schema/finite/label validation, duplicates, persistent transactions,
-  search/sort/filter/pagination, batch scoring, actual stored-data analytics.
-- SHAP explanations tested for all three candidate algorithms.
-- Cases, transaction links, notes, statuses, priorities, analyst decisions,
-  persistence across server restart, history search and JSON reports.
-- React analyst pages, CSV import, Laboratory comparison and exports, graph,
-  optional Copilot configuration/disabled state, responsive desktop/mobile UI.
-- Separate synthetic entity/relationship tables and interactive Cytoscape graph.
-- Restricted read-only Ollama context API; enabled path tested using a mock,
-  disabled path and unavailable configuration handled honestly.
-- Documentation, attribution, MIT license, sample artificial CSV, real synthetic
-  evaluation artifact, actual application screenshots, locked dependencies.
+- Actual ULB pipeline and synthetic fixtures: Logistic Regression, Random Forest,
+  XGBoost; validation tuning/threshold/algorithm selection, untouched test metrics,
+  duplicate analysis, stratified and chronological splits, trusted serialization,
+  provenance guards and actual inference. SHAP reconstruction verified for all
+  three algorithms.
+- CSV import (192 MiB bounded upload supports the official full ULB file), error
+  reporting, duplicate detection, PostgreSQL persistence, batch inference,
+  pagination/search/filter/sort and CSV/JSON transaction export.
+- SQL-aggregated analytics, actual stored-data dashboard, transaction details,
+  SHAP, saved experiment comparison/PR curves/confusion matrices/importance/export.
+- Persisted investigations, case/transaction links, notes, priorities, statuses,
+  analyst decisions, history search, dated JSON reports, restart persistence.
+- Separate SQL-backed synthetic relational graph with selection, zoom/pan,
+  type highlighting and entity details. No inferred ULB relationships.
+- Optional local Ollama read-only evidence API, disabled by default, graceful
+  unavailable state. Enabled HTTP response path is mocked in tests.
+- React/TypeScript/Vite/Tailwind analyst workspace, all navigation pages,
+  responsive desktop/mobile screenshots, loading/error/empty states.
+- Locked dependencies, MIT license, candidate-source review and attribution,
+  README, architecture, ML methodology, datasets, API and roadmap documentation.
+- Non-root API Docker image, PostgreSQL + Nginx Compose stack, GitHub Actions.
 
-## Verification evidence
+## Actual benchmark evidence
 
-- 15 pytest tests passed on SQLite, including ML, API, CSV, inference consistency,
-  SHAP reconstruction for three algorithms and investigation persistence.
-- PostgreSQL 17 native cluster: all 15 tests passed with isolated per-test schemas.
-- 3 Vitest component tests passed.
-- 4 Playwright browser workflows passed in Chromium: investigation persistence,
-  CSV import/error state and updated metrics, all analyst pages, mobile viewport.
-- TypeScript, ESLint, Vite production build and Python Ruff/compilation passed.
-- npm audit reported zero vulnerabilities after upgrading to patched Vitest.
-- Recharts animations disabled after screenshot review caught early empty plots;
-  actual desktop/mobile plots visually verified. Browser rerun found an ambiguous
-  test selector after creating duplicate-titled cases; selector changed to exact
-  newly-created case ID; all 4 browser workflows passed again.
-- Docker is unavailable locally. Compose startup is configured as a CI job;
-  runtime result is pending GitHub Actions, not claimed as passed yet.
+Official Kaggle GET download succeeded without credentials. CSV stays ignored at
+`data/private/creditcard.csv`; checksum/source metadata is tracked in
+`docs/research/ulb-source.json`. No full dataset or model binary is published.
 
-## GitHub
+- Original: 284,807 rows. Removed 1,081 duplicate feature rows; 283,726 unique rows,
+  473 frauds. Both full-data experiments completed successfully.
+- Stratified: XGBoost selected on validation AP. Untouched test: 56,746 rows / 95
+  frauds; precision .9474, recall .7579, F1 .8421, AP .8069, ROC-AUC .9793.
+- Chronological: Logistic Regression selected on validation AP. Untouched test:
+  56,746 rows / 74 frauds; precision .9423, recall .6622, F1 .7778, AP .7475,
+  ROC-AUC .9818. All candidates' results are retained; no test-based reselection.
+- Exact parameters, thresholds, confusion matrices, PR curves, partitions, hashes,
+  runtime and environment are in the two ULB reports under `docs/research/`.
+- Synthetic experiment is retained and clearly labeled separately.
 
-Authenticated account verified: muratkareem. Target was absent; created public
-repository https://github.com/muratkareem/argus. First tested backend milestone
-committed and pushed (`971d2fc`). Frontend/CI/documentation milestone pending final
-checks and push. Credential-pattern scan runs before commits; no datasets,
-credentials, local database or model binaries published.
+## Executed verification
 
-## Explicit limits / remaining work
+- 15 pytest tests passed on SQLite and 15 on PostgreSQL 17, including API/CSV,
+  ML smoke, inference consistency, three-algorithm SHAP and case persistence.
+- Ruff lint/format and Python compile checks passed.
+- 3 Vitest component tests, ESLint/TypeScript and Vite production build passed.
+- npm audit: zero reported vulnerabilities after patched Vitest upgrade.
+- 4 Playwright browser workflows passed on SQLite and PostgreSQL-backed demo:
+  imports/errors/updated stats, investigation notes/decisions/status persistence,
+  exports, model comparison, graph, disabled Copilot, settings, mobile viewport.
+- Actual full ULB HTTP upload verified: imported/scored 283,726 rows, skipped
+  1,081 duplicates. Actual ULB single prediction matched stored batch inference.
+- Local PostgreSQL workspace: 284,366 scored records (283,726 ULB + 640 explicitly
+  synthetic). Full-data overview aggregation measured .174 seconds in one local
+  request; this is not a throughput or memory guarantee.
+- Browser verification on actual ULB data passed: overview, source/flag filters,
+  XGBoost SHAP, Laboratory, mobile layout; no page errors. Actual screenshots
+  reviewed; plot animations disabled to prevent incomplete captures.
+- GitHub Actions baseline `d08d46e`: **all four jobs passed**, including complete
+  Docker Compose build/start, PostgreSQL health, 600 demo rows scored through the
+  frontend API proxy, backend tests, browser flows, frontend checks/audit.
+  Evidence: https://github.com/muratkareem/argus/actions/runs/40332175925
+- Latest full-ULB/SQL-aggregation milestone has passed its local regression checks;
+  its publication and final CI observation follow this status update.
 
-- Authorized ULB dataset is not supplied. No ULB experimental result claimed;
-  authorized download/import and training procedure documented.
-- Installed Ollama unavailable: real model integration is unverified.
-- PDF reports and synthetic graph entity case links are planned.
-- Authentication, authorization, migrations, async ingestion and production
-  performance/security are outside this research MVP.
-- Complete final browser screenshots, extended PostgreSQL tests, publish verified
-  milestone, inspect Actions including Docker, repair failures, record final state.
+## Git and continuation
+
+Account verified as muratkareem. Repository was absent and created public.
+No existing remote work overwritten. Commits `971d2fc` (backend/ML) and
+`d08d46e` (analyst workspace/Compose/CI) were pushed. Credential-pattern checks
+passed before commits. Read-only ChatGPT project `sources/` untouched.
+
+Local ignored `.env` selects the task-owned PostgreSQL cluster at loopback 55432.
+Its files are `.local/postgres`; ULB and synthetic model versions are in
+`ml/artifacts`. Stratified ULB XGBoost is active; the chronological run is retained
+for comparison. `bootstrap.py` refuses to overwrite a non-synthetic active model;
+use separate database/artifact paths to set up a new synthetic test workspace.
+Default fresh-clone/Compose setup is synthetic, needs no private data, and trains
+its own model. For ordinary setup use README commands.
+
+## Explicit remaining limitations
+
+- Installed Ollama/model integration is unverified; enabled path uses a mock.
+- PDF reports and graph entity case links are planned, clearly labeled in UI/docs.
+- No authentication, authorization, schema migrations, bank connectivity,
+  compliance claim, calibrated probabilities or production assurance.
+- Imports/scoring are synchronous and memory-bound; no large-scale load testing.
+- Experiments are single-seed estimates without confidence intervals or external
+  validation. Dashboard metrics over imported training data are not held-out
+  research metrics; Laboratory reports are the benchmark evidence.

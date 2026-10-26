@@ -1,13 +1,19 @@
 # Datasets and provenance
 
-## ULB benchmark (user-supplied)
+## ULB benchmark (official authorized source)
 
 Source: [Kaggle / mlg-ulb creditcardfraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud).
 The source describes 284,807 transactions, 492 frauds, anonymized V1–V28,
 Time, Amount, and binary Class. Verify the current source terms yourself before
 access, publication, or redistribution. No source data is committed here.
 
-1. Sign in to Kaggle in your own browser, review the source terms, and obtain
+The official download was publicly accessible on 26 October 2026. The helper
+`uv run python scripts/download_ulb.py` downloads only from that route, checks ZIP
+content and size, writes a fixed destination, refuses overwrite, and records the
+CSV SHA-256. If access is unavailable, it stops without using a mirror or bypass.
+The full CSV is about 144 MiB; the bounded API upload limit is 192 MiB.
+
+1. Review the source terms. Use the helper, or sign in to Kaggle and obtain
    `creditcard.csv` through the source's authorized download route.
 2. Store it at `data/private/creditcard.csv` (ignored by Git). Do not put Kaggle
    credentials or downloaded archives in tracked folders.
@@ -63,3 +69,13 @@ These graph transaction nodes are **not** ULB transactions or the scored synthet
 CSV records. No geographical, account, card, device, or merchant evidence is
 inferred from anonymized ULB features. Graph entity case-linking is planned;
 scored transactions already support persistent investigation links.
+
+
+## Verified benchmark input
+
+Actual official CSV: 150,828,752 bytes; SHA-256
+`76274b691b16a6c49d3f159c883398e03ccd6d1ee12d9d8ee38f4b4b98551a89`.
+Training removed 1,081 duplicate feature rows, including duplicated fraud records,
+leaving 283,726 unique rows / 473 frauds. Derived reports and source metadata are
+tracked under `docs/research/`; source CSV, archive and trained binaries remain
+ignored. No full dataset is redistributed.

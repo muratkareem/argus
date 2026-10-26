@@ -4,8 +4,10 @@ import argparse
 import hashlib
 import json
 import platform
+import sys
 import time
 from datetime import datetime, timezone
+from importlib.metadata import version as package_version
 from pathlib import Path
 
 import joblib
@@ -159,6 +161,11 @@ def train(df, artifact_dir, provenance, split="stratified"):
     }
     winners = []
     for name, models in candidates.items():
+        print(
+            f"Training {name}: {len(train_idx)} train / {len(val_idx)} validation / {len(test_idx)} test rows",
+            file=sys.stderr,
+            flush=True,
+        )
         fitted = []
         for model in models:
             model.fit(x_train, y_train)
@@ -231,6 +238,7 @@ def train(df, artifact_dir, provenance, split="stratified"):
             "python": platform.python_version(),
             "sklearn": sklearn.__version__,
             "numpy": np.__version__,
+            **{name: package_version(name) for name in ["pandas", "xgboost", "shap", "joblib"]},
         },
         "limitations": "Uncalibrated research scores. Synthetic results are not ULB benchmark results. Anonymized features cannot explain merchant or geographic behavior.",
     }

@@ -6,13 +6,12 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 import httpx
-import numpy as np
 import pandas as pd
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import Integer, case, cast, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -193,7 +192,9 @@ def create_app(settings=None):
         content = await file.read(settings.max_upload_bytes + 1)
         await file.close()
         if len(content) > settings.max_upload_bytes:
-            raise HTTPException(413, "CSV exceeds 64 MiB limit")
+            raise HTTPException(
+                413, f"CSV exceeds {settings.max_upload_bytes // 1024**2} MiB limit"
+            )
         try:
             return ingest(session, content, file.filename, provenance, predictor)
         except ValueError as exc:
@@ -346,41 +347,73 @@ def create_app(settings=None):
 
     @app.get("/api/v1/overview")
     def overview(session: Session = Depends(db)):
-        rows = session.execute(select(Transaction, Dataset.provenance).join(Dataset)).all()
-        txs = [t for t, _ in rows]
-        scores = [t.risk_score for t in txs if t.risk_score is not None]
-        known_fraud = [t for t in txs if t.label == 1 and t.flagged is not None]
-        hist, _ = np.histogram(scores, bins=np.linspace(0, 1, 11))
-        trend = {}
-        for tx in txs:
-            bucket = int(tx.time // 3600)
-            entry = trend.setdefault(
-                bucket, {"hour": bucket, "count": 0, "flagged": 0, "amount": 0}
+        total, scored, flagged, volume = session.execute(
+            select(
+                func.count(Transaction.id),
+                func.count(Transaction.risk_score),
+                func.coalesce(func.sum(Transaction.flagged), 0),
+                func.coalesce(func.sum(Transaction.amount), 0),
             )
-            entry["count"] += 1
-            entry["flagged"] += int(tx.flagged or 0)
-            entry["amount"] += tx.amount
+        ).one()
+        fraud_count, detected = session.execute(
+            select(
+                func.count(Transaction.id),
+                func.coalesce(func.sum(Transaction.flagged), 0),
+            ).where(Transaction.label == 1, Transaction.flagged.is_not(None))
+        ).one()
+        provenance_counts = dict(
+            session.execute(
+                select(Dataset.provenance, func.count(Transaction.id))
+                .join(Transaction, Transaction.dataset_id == Dataset.id)
+                .group_by(Dataset.provenance)
+            ).all()
+        )
+        bucket = case(
+            (Transaction.risk_score >= 1, 9),
+            else_=cast(func.floor(Transaction.risk_score * 10), Integer),
+        )
+        counts = dict(
+            session.execute(
+                select(bucket, func.count(Transaction.id))
+                .where(Transaction.risk_score.is_not(None))
+                .group_by(bucket)
+            ).all()
+        )
+        hour = cast(func.floor(Transaction.time / 3600), Integer)
+        trend = [
+            {"hour": h, "count": n, "flagged": f, "amount": float(a)}
+            for h, n, f, a in session.execute(
+                select(
+                    hour,
+                    func.count(Transaction.id),
+                    func.coalesce(func.sum(Transaction.flagged), 0),
+                    func.sum(Transaction.amount),
+                )
+                .group_by(hour)
+                .order_by(hour)
+            )
+        ]
+        recent = session.execute(
+            select(Transaction, Dataset.provenance)
+            .join(Dataset)
+            .where(Transaction.flagged == 1)
+            .order_by(Transaction.id.desc())
+            .limit(8)
+        )
         return {
-            "total": len(txs),
-            "scored": len(scores),
-            "flagged": sum(int(t.flagged or 0) for t in txs),
-            "volume": round(sum(t.amount for t in txs), 2),
-            "fraud_detection_rate": sum(t.flagged for t in known_fraud) / len(known_fraud)
-            if known_fraud
-            else None,
-            "labeled_scored_fraud": len(known_fraud),
-            "provenance_counts": {
-                p: sum(1 for _, v in rows if v == p) for p in {p for _, p in rows}
-            },
+            "total": total,
+            "scored": scored,
+            "flagged": flagged,
+            "volume": round(float(volume), 2),
+            "fraud_detection_rate": detected / fraud_count if fraud_count else None,
+            "labeled_scored_fraud": fraud_count,
+            "provenance_counts": provenance_counts,
             "risk_distribution": [
-                {"bucket": f"{i * 10}–{(i + 1) * 10}%", "count": int(v)} for i, v in enumerate(hist)
+                {"bucket": f"{i * 10}–{(i + 1) * 10}%", "count": counts.get(i, 0)}
+                for i in range(10)
             ],
-            "trend": sorted(trend.values(), key=lambda x: x["hour"]),
-            "recent_flagged": [
-                transaction_json(t, p)
-                for t, p in sorted(rows, key=lambda r: r[0].id, reverse=True)
-                if t.flagged
-            ][:8],
+            "trend": trend,
+            "recent_flagged": [transaction_json(t, p) for t, p in recent],
             "open_cases": session.scalar(
                 select(func.count())
                 .select_from(Case)

@@ -12,8 +12,8 @@
 
 ## Research next
 
-1. Authorized ULB dataset run; publish actual metrics and environment alongside
-   stratified and chronological evaluations and confidence intervals.
+1. Extend the completed authorized ULB stratified/chronological experiments with
+   repeated seeds, confidence intervals and independent external validation.
 2. Calibration and expected-cost policies with explicit validated assumptions.
 3. Broader tuning, feature stability, temporal drift and external data evaluation.
 4. Reproducibility manifests for externally supplied datasets and stronger model
