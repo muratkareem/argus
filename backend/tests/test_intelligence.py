@@ -143,3 +143,24 @@ def test_structured_copilot_rejects_unknown_citations():
     with pytest.raises(HTTPException) as exc:
         render_interpretation(json.dumps(sections), [{"id": "transaction:1"}])
     assert exc.value.status_code == 502
+
+
+def test_case_and_timeline_timestamps_survive_restart_with_utc_offsets(client, settings):
+    from datetime import datetime, timedelta
+
+    case = client.post("/api/v1/cases", json={"title": "UTC timeline"}).json()
+    client.post(f"/api/v1/cases/{case['id']}/notes", json={"body": "Timestamped evidence"})
+    client.patch(f"/api/v1/cases/{case['id']}", json={"status": "In Review"})
+    with TestClient(create_app(settings)) as other:
+        stored = other.get(f"/api/v1/cases/{case['id']}").json()
+        timestamps = [stored["created_at"], stored["notes"][0]["created_at"]]
+        timestamps += [
+            event["created_at"]
+            for event in other.get(f"/api/v1/cases/{case['id']}/timeline").json()
+        ]
+        assert all(
+            datetime.fromisoformat(value).utcoffset() == timedelta(0) for value in timestamps
+        )
+        assert datetime.fromisoformat(stored["created_at"]) == datetime.fromisoformat(
+            case["created_at"]
+        )

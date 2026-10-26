@@ -30,6 +30,7 @@ from app.db import (
     Relationship,
     Transaction,
     connect,
+    iso_utc,
 )
 from app.intelligence import AdvancedFilters, advanced_where, intelligence_router, timeline
 from app.ml import FEATURES, Predictor, validate_frame
@@ -99,7 +100,7 @@ def case_json(session, case):
         "status": case.status,
         "priority": case.priority,
         "decision": case.decision,
-        "created_at": case.created_at.isoformat(),
+        "created_at": iso_utc(case.created_at),
         "transaction_ids": list(
             session.scalars(
                 select(CaseTransaction.transaction_id).where(CaseTransaction.case_id == case.id)
@@ -109,7 +110,7 @@ def case_json(session, case):
             session.scalars(select(CaseEntity.entity_id).where(CaseEntity.case_id == case.id))
         ),
         "notes": [
-            {"id": n.id, "body": n.body, "created_at": n.created_at.isoformat()}
+            {"id": n.id, "body": n.body, "created_at": iso_utc(n.created_at)}
             for n in session.scalars(select(Note).where(Note.case_id == case.id).order_by(Note.id))
         ],
     }
@@ -186,7 +187,7 @@ def create_app(settings=None):
                 "provenance": d.provenance,
                 "rows": d.rows,
                 "duplicates": d.duplicates,
-                "created_at": d.created_at.isoformat(),
+                "created_at": iso_utc(d.created_at),
             }
             for d in session.scalars(select(Dataset).order_by(Dataset.id.desc()))
         ]

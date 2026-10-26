@@ -15,6 +15,7 @@ from app.db import (
     Relationship,
     SavedView,
     Transaction,
+    iso_utc,
 )
 
 
@@ -78,7 +79,7 @@ def timeline(session, case):
             "id": f"created-{case.id}",
             "kind": "created",
             "payload": {"title": case.title},
-            "created_at": case.created_at.isoformat(),
+            "created_at": iso_utc(case.created_at),
         }
     ]
     events += [
@@ -86,7 +87,7 @@ def timeline(session, case):
             "id": f"event-{e.id}",
             "kind": e.kind,
             "payload": e.payload,
-            "created_at": e.created_at.isoformat(),
+            "created_at": iso_utc(e.created_at),
         }
         for e in session.scalars(select(CaseEvent).where(CaseEvent.case_id == case.id))
     ]
@@ -95,7 +96,7 @@ def timeline(session, case):
             "id": f"note-{n.id}",
             "kind": "note",
             "payload": {"body": n.body},
-            "created_at": n.created_at.isoformat(),
+            "created_at": iso_utc(n.created_at),
         }
         for n in session.scalars(select(Note).where(Note.case_id == case.id))
     ]

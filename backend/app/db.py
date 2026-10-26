@@ -18,6 +18,13 @@ def now():
     return datetime.now(timezone.utc)
 
 
+def iso_utc(value):
+    """SQLite drops tzinfo; all ARGUS timestamps are stored/generated in UTC."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat()
+
+
 class Base(DeclarativeBase):
     pass
 
