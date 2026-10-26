@@ -228,3 +228,58 @@ test("workspace command navigation and display density persist", async ({
   await expect(page.getByLabel("Display density")).toHaveValue("comfortable");
   await page.getByLabel("Display density").selectOption("compact");
 });
+
+test("advanced transaction queries persist and global search opens stored records", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/#transactions");
+  await page.getByLabel("Minimum amount").fill("20");
+  await page.getByLabel("Maximum amount").fill("150");
+  const viewName = `Analyst range ${Date.now()}`;
+  await page.getByLabel("Saved view name").fill(viewName);
+  await page.getByRole("button", { name: "Save query configuration" }).click();
+  await expect(page.getByLabel("Saved transaction views")).not.toHaveValue("");
+  await page.reload();
+  await page
+    .getByLabel("Saved transaction views")
+    .selectOption({ label: viewName });
+  await expect(page.getByLabel("Minimum amount")).toHaveValue("20");
+  await expect(page.getByLabel("Maximum amount")).toHaveValue("150");
+  const download = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Export filtered CSV" }).click();
+  const csv = (await readFile((await (await download).path())!, "utf8"))
+    .trim()
+    .split("\n");
+  const amountIndex = csv[0].split(",").indexOf("amount");
+  expect(csv.length).toBeGreaterThan(1);
+  expect(
+    csv
+      .slice(1)
+      .every(
+        (row) =>
+          Number(row.split(",")[amountIndex]) >= 20 &&
+          Number(row.split(",")[amountIndex]) <= 150,
+      ),
+  ).toBeTruthy();
+  const tx = (
+    await (
+      await request.get("http://127.0.0.1:8000/api/v1/transactions?page_size=1")
+    ).json()
+  ).items[0];
+  await page.keyboard.press("ControlOrMeta+k");
+  const search = page.getByRole("dialog", { name: "Workspace search" });
+  const label = `TX-${String(tx.id).padStart(6, "0")}`;
+  await search.getByLabel("Search workspace").fill(label);
+  await search
+    .getByRole("button", { name: `Open Transaction ${label}`, exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Transaction details" }),
+  ).toContainText(label);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Delete saved view" }).click();
+  await expect(
+    page.getByRole("option", { name: viewName, exact: true }),
+  ).toHaveCount(0);
+});

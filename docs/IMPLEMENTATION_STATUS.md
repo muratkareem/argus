@@ -133,3 +133,12 @@ timeline export, synthetic entity/case links, entity detail and bounded graph
 neighborhood traversal are implemented. All 20 backend tests passed on SQLite
 and PostgreSQL using isolated per-test schemas. Existing ULB data/model files and
 benchmark results remain unchanged. New tables are additive via create_all.
+
+Transaction intelligence UI now includes a persistent query builder, amount/time/
+score/label/provenance ranges, server-backed saved views, filter chips and matching
+CSV exports. Cmd/Ctrl+K now searches actual transactions, cases and synthetic
+entities and opens contextual records. Browser verification caught ambiguous
+names between a transaction and cases mentioning it; result controls now have
+explicit accessible type/name labels. The focused saved-view/search/export flow
+passed after correction; preceding five browser flows passed. Foundation/backend
+milestone CI runs 40342875329 and 40343465078 both passed all four jobs.

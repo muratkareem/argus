@@ -1,3 +1,4 @@
+import { TransactionIntelligence } from "./pages/TransactionIntelligence";
 import { Risk, Empty, Panel, Metric, TxTable, Loading } from "./ui";
 import { CommandMenu } from "./components/CommandMenu";
 export { Risk, Empty } from "./ui";
@@ -7,7 +8,6 @@ import {
   ArrowDownToLine,
   ArrowRight,
   Check,
-  ChevronLeft,
   ChevronRight,
   CircleHelp,
   Database,
@@ -21,7 +21,6 @@ import {
   Search,
   Settings as SettingsIcon,
   ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
   Upload,
   X,
@@ -291,7 +290,7 @@ export default function App() {
             />
           )}
           {page === "transactions" && (
-            <Transactions
+            <TransactionIntelligence
               revision={revision}
               onSelect={setSelectedTx}
               fail={fail}
@@ -650,157 +649,6 @@ function OverviewPage({
         </span>
       </div>
     </>
-  );
-}
-
-function Transactions({
-  revision,
-  onSelect,
-  fail,
-}: {
-  revision: number;
-  onSelect: (id: number) => void;
-  fail: (e: unknown) => void;
-}) {
-  const [q, setQ] = useState(""),
-    [flag, setFlag] = useState("all"),
-    [source, setSource] = useState("all"),
-    [sort, setSort] = useState("risk_score"),
-    [direction, setDirection] = useState("desc"),
-    [page, setPage] = useState(1),
-    [data, setData] = useState<{ items: Tx[]; total: number } | null>(null);
-  const params = new URLSearchParams({
-    q,
-    sort,
-    direction,
-    page: String(page),
-    page_size: "15",
-    ...(flag === "all" ? {} : { flagged: flag }),
-    ...(source === "all" ? {} : { provenance: source }),
-  });
-  useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(
-      () =>
-        api<{ items: Tx[]; total: number }>("/transactions?" + params)
-          .then((d) => {
-            if (!cancelled) setData(d);
-          })
-          .catch(fail),
-      180,
-    );
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [q, flag, source, sort, direction, page, revision]);
-  return (
-    <Panel
-      title="Transaction explorer"
-      meta={
-        <a
-          className="secondary"
-          href={
-            "/api/v1/transactions/export?" +
-            new URLSearchParams({
-              q,
-              ...(flag === "all" ? {} : { flagged: flag }),
-              ...(source === "all" ? {} : { provenance: source }),
-            })
-          }
-        >
-          <ArrowDownToLine size={14} />
-          Export CSV
-        </a>
-      }
-    >
-      <div className="toolbar">
-        <label className="search-input">
-          <Search size={16} />
-          <input
-            aria-label="Search transactions"
-            placeholder="Search transaction ID or dataset…"
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setPage(1);
-            }}
-          />
-        </label>
-        <select
-          aria-label="Assessment filter"
-          value={flag}
-          onChange={(e) => {
-            setFlag(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="all">All assessments</option>
-          <option value="true">Flagged only</option>
-          <option value="false">Clear only</option>
-        </select>
-        <select
-          aria-label="Data source filter"
-          value={source}
-          onChange={(e) => {
-            setSource(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="all">All sources</option>
-          <option value="synthetic">Synthetic</option>
-          <option value="ulb">ULB benchmark</option>
-        </select>
-        <select
-          aria-label="Sort transactions"
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-        >
-          <option value="risk_score">Risk score</option>
-          <option value="amount">Amount</option>
-          <option value="time">Dataset time</option>
-          <option value="id">Transaction ID</option>
-        </select>
-        <button
-          className="icon-button"
-          aria-label="Reverse sort direction"
-          onClick={() => setDirection((d) => (d === "asc" ? "desc" : "asc"))}
-        >
-          <SlidersHorizontal size={16} />
-        </button>
-      </div>
-      {data ? (
-        <>
-          <TxTable items={data.items} onSelect={onSelect} />
-          <div className="pagination">
-            <span>
-              {data.total.toLocaleString()} results · Page {page} of{" "}
-              {Math.max(1, Math.ceil(data.total / 15))}
-            </span>
-            <div>
-              <button
-                className="secondary"
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                <ChevronLeft size={14} />
-                Previous
-              </button>
-              <button
-                className="secondary"
-                disabled={page * 15 >= data.total}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        </>
-      ) : (
-        <Loading />
-      )}
-    </Panel>
   );
 }
 
