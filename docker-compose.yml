@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: argus
+      POSTGRES_USER: argus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U argus -d argus"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      ARGUS_DATABASE_URL: postgresql+psycopg://argus:${POSTGRES_PASSWORD}@postgres:5432/argus
+      ARGUS_ARTIFACT_DIR: /app/ml/artifacts
+      ARGUS_SEED_DEMO: ${ARGUS_SEED_DEMO:-true}
+      ARGUS_OLLAMA_ENABLED: ${ARGUS_OLLAMA_ENABLED:-false}
+      ARGUS_OLLAMA_URL: http://host.docker.internal:11434
+      ARGUS_OLLAMA_MODEL: ${ARGUS_OLLAMA_MODEL:-llama3.2}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - model_artifacts:/app/ml/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+volumes:
+  postgres_data:
+  model_artifacts:

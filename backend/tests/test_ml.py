@@ -74,3 +74,38 @@ def test_metrics_do_not_reward_majority_accuracy():
     assert result["recall"] == 0
     assert result["f1"] == 0
     assert result["confusion_matrix"] == [[99, 0], [1, 0]]
+
+
+@pytest.mark.parametrize("kind", ["linear", "forest", "xgboost"])
+def test_explanation_supports_every_candidate_algorithm(tmp_path, kind):
+    import joblib
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    from xgboost import XGBClassifier
+
+    frame = synthetic(250, seed=771)
+    candidates = {
+        "linear": make_pipeline(StandardScaler(), LogisticRegression(max_iter=500)),
+        "forest": RandomForestClassifier(n_estimators=20, max_depth=4, random_state=42),
+        "xgboost": XGBClassifier(n_estimators=20, max_depth=3, random_state=42, n_jobs=2),
+    }
+    model = candidates[kind].fit(frame[FEATURES], frame.Class)
+    version = "abcdef"
+    (tmp_path / version).mkdir()
+    joblib.dump(
+        {
+            "model": model,
+            "background": frame[FEATURES].iloc[:50],
+            "threshold": 0.5,
+            "version": version,
+            "provenance": "synthetic",
+        },
+        tmp_path / version / "model.joblib",
+    )
+    (tmp_path / "current.json").write_text(json.dumps({"version": version}))
+    result = Predictor(tmp_path).explain(frame[FEATURES].iloc[0].to_dict(), "synthetic")
+    raw = result["base_value"] + sum(f["contribution"] for f in result["features"])
+    reconstructed = raw if kind == "forest" else 1 / (1 + np.exp(-raw))
+    assert reconstructed == pytest.approx(result["risk_score"], abs=1e-5)

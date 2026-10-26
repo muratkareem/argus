@@ -15,11 +15,26 @@ def artifacts(tmp_path_factory):
 @pytest.fixture
 def settings(tmp_path, artifacts):
     import os
+    import uuid
 
-    return Settings(
-        database_url=os.environ.get("ARGUS_TEST_DATABASE_URL", f"sqlite:///{tmp_path}/test.db"),
-        artifact_dir=artifacts,
-    )
+    from sqlalchemy import create_engine, text
+
+    database_url = os.environ.get("ARGUS_TEST_DATABASE_URL")
+    if not database_url:
+        yield Settings(database_url=f"sqlite:///{tmp_path}/test.db", artifact_dir=artifacts)
+        return
+    schema = "argus_test_" + uuid.uuid4().hex
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+    separator = "&" if "?" in database_url else "?"
+    isolated_url = database_url + separator + "options=-csearch_path%3D" + schema
+    try:
+        yield Settings(database_url=isolated_url, artifact_dir=artifacts)
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+        engine.dispose()
 
 
 @pytest.fixture

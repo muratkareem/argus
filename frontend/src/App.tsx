@@ -1,0 +1,2268 @@
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import {
+  Activity,
+  ArrowDownToLine,
+  ArrowRight,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  Database,
+  FileSearch,
+  FlaskConical,
+  Focus,
+  LayoutDashboard,
+  LoaderCircle,
+  Network,
+  Plus,
+  Search,
+  Settings as SettingsIcon,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Upload,
+  X,
+} from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import cytoscape from "cytoscape";
+import { api, amount, download, percent, send } from "./api";
+import type {
+  Case,
+  Dataset,
+  Experiment,
+  Models,
+  Overview,
+  Settings,
+  Tx,
+} from "./types";
+
+const pages = [
+  ["overview", "Overview", LayoutDashboard],
+  ["transactions", "Transactions", Activity],
+  ["detection", "Fraud Detection", ShieldCheck],
+  ["laboratory", "ML Laboratory", FlaskConical],
+  ["investigations", "Investigations", FileSearch],
+  ["graph", "Intelligence Graph", Network],
+  ["copilot", "AI Copilot", Sparkles],
+  ["settings", "Settings", SettingsIcon],
+] as const;
+const route = () => location.hash.slice(1).split("/")[0] || "overview";
+const nav = (page: string) => {
+  location.hash = page;
+};
+const tipStyle = {
+  background: "#141e2c",
+  border: "1px solid #2b3949",
+  borderRadius: 8,
+  color: "#dde6f1",
+  fontSize: 12,
+};
+
+export function Risk({ tx }: { tx: Tx }) {
+  return (
+    <span
+      className={
+        "badge " +
+        (tx.flagged == null ? "neutral" : tx.flagged ? "danger" : "success")
+      }
+    >
+      {tx.flagged == null ? "Unscored" : tx.flagged ? "Flagged" : "Clear"}
+    </span>
+  );
+}
+export function Empty({ children }: { children: ReactNode }) {
+  return (
+    <div className="empty">
+      <Database size={26} />
+      <p>{children}</p>
+    </div>
+  );
+}
+function Panel({
+  title,
+  meta,
+  children,
+  className = "",
+}: {
+  title: string;
+  meta?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={"panel " + className}>
+      <div className="panel-head">
+        <h2>{title}</h2>
+        {meta}
+      </div>
+      {children}
+    </section>
+  );
+}
+function Metric({
+  label,
+  value,
+  detail,
+  accent = false,
+}: {
+  label: string;
+  value: ReactNode;
+  detail: ReactNode;
+  accent?: boolean;
+}) {
+  return (
+    <div className={"metric " + (accent ? "metric-accent" : "")}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
+  );
+}
+function TxTable({
+  items,
+  onSelect,
+}: {
+  items: Tx[];
+  onSelect: (id: number) => void;
+}) {
+  return items.length ? (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Transaction</th>
+            <th>
+              Amount <span className="unit">units</span>
+            </th>
+            <th>Risk score</th>
+            <th>Assessment</th>
+            <th>Source</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((tx) => (
+            <tr key={tx.id} onClick={() => onSelect(tx.id)}>
+              <td>
+                <button
+                  className="text-button mono"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(tx.id);
+                  }}
+                >
+                  TX-{String(tx.id).padStart(6, "0")}
+                </button>
+                <small className="table-sub">
+                  T + {Math.floor(tx.time / 3600)}h{" "}
+                  {Math.floor((tx.time % 3600) / 60)}m
+                </small>
+              </td>
+              <td className="mono">{amount(tx.amount)}</td>
+              <td>
+                <div className="risk-value">
+                  <span className="mono">{percent(tx.risk_score)}</span>
+                  <div className="risk-track">
+                    <i
+                      style={{
+                        width: `${(tx.risk_score ?? 0) * 100}%`,
+                        background: tx.flagged ? "#f47974" : "#51aaa7",
+                      }}
+                    />
+                  </div>
+                </div>
+              </td>
+              <td>
+                <Risk tx={tx} />
+              </td>
+              <td>
+                <span className="source-dot" />
+                {tx.provenance === "synthetic" ? "Synthetic" : "ULB benchmark"}
+              </td>
+              <td>
+                <ChevronRight size={15} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    <Empty>No matching transactions. Import a CSV to get started.</Empty>
+  );
+}
+
+export default function App() {
+  const [page, setPage] = useState(route),
+    [revision, setRevision] = useState(0),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [uploadOpen, setUploadOpen] = useState(false),
+    [selectedTx, setSelectedTx] = useState<number | null>(null),
+    [settings, setSettings] = useState<Settings | null>(null);
+  useEffect(() => {
+    const change = () => setPage(route());
+    addEventListener("hashchange", change);
+    return () => removeEventListener("hashchange", change);
+  }, []);
+  useEffect(() => {
+    api<Settings>("/settings")
+      .then(setSettings)
+      .catch((e) => setError(e.message));
+  }, []);
+  useEffect(() => {
+    if (notice) {
+      const id = setTimeout(() => setNotice(""), 7000);
+      return () => clearTimeout(id);
+    }
+  }, [notice]);
+  const refresh = () => setRevision((n) => n + 1);
+  const fail = (e: unknown) =>
+    setError(e instanceof Error ? e.message : String(e));
+  const current = pages.find((p) => p[0] === page) ?? pages[0];
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <a className="brand" href="#overview" aria-label="ARGUS overview">
+          <div className="brand-mark">
+            <Focus size={27} />
+          </div>
+          <span>
+            ARGUS<small>FINANCIAL INTELLIGENCE</small>
+          </span>
+        </a>
+        <div className="workspace-label">
+          <span className="workspace-icon">A</span>
+          <div>
+            Research workspace<small>Local environment</small>
+          </div>
+          <span className="workspace-version">v0.1</span>
+        </div>
+        <div className="nav-label">WORKSPACE</div>
+        <nav>
+          {pages.slice(0, 7).map(([id, label, Icon]) => (
+            <a key={id} href={"#" + id} className={page === id ? "active" : ""}>
+              <Icon size={17} />
+              {label}
+              {id === "copilot" && <span className="nav-tag">LOCAL</span>}
+            </a>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <a href="#settings" className={page === "settings" ? "active" : ""}>
+            <SettingsIcon size={17} />
+            Settings
+          </a>
+          <div className="research-card">
+            <ShieldCheck size={17} />
+            <span>
+              Built for research<small>Experimental · local use</small>
+            </span>
+          </div>
+          <div className="analyst">
+            <div className="avatar">RA</div>
+            <span>
+              Research analyst<small>ARGUS workspace</small>
+            </span>
+            <span className="online-dot" />
+          </div>
+        </div>
+      </aside>
+      <div className="main-shell">
+        <header className="topbar">
+          <div className="breadcrumb">
+            Workspace <ChevronRight size={13} />
+            <span>{current[1]}</span>
+          </div>
+          <div className="topbar-right">
+            <span className="environment">
+              <span className="online-dot" />
+              LOCAL RESEARCH
+            </span>
+            <a
+              className="help"
+              href="http://127.0.0.1:8000/docs"
+              target="_blank"
+              rel="noreferrer"
+              title="Open API documentation"
+            >
+              <CircleHelp size={17} />
+            </a>
+            <div className="avatar small">RA</div>
+          </div>
+        </header>
+        <main>
+          <div className="page-title">
+            <div>
+              <div className="eyebrow">ARGUS / ANALYST WORKSPACE</div>
+              <h1>
+                {current[1] === "Overview"
+                  ? "Intelligence overview"
+                  : current[1]}
+              </h1>
+              <p>
+                {
+                  (
+                    {
+                      overview:
+                        "A clear view of transaction risk. A focused path to investigation.",
+                      transactions:
+                        "Explore stored transactions, inspect model scores, and follow the evidence.",
+                      detection:
+                        "Import transaction data and apply the active fraud detection model.",
+                      laboratory:
+                        "Reproducible experiments. Untouched test sets. Measured performance.",
+                      investigations:
+                        "Turn flagged transactions into documented analyst decisions.",
+                      graph:
+                        "Explore connections in an explicitly synthetic relationship network.",
+                      copilot:
+                        "Local assistance grounded in selected records and analyst evidence.",
+                      settings:
+                        "Runtime configuration and research environment.",
+                    } as Record<string, string>
+                  )[page]
+                }
+              </p>
+            </div>
+            <button className="primary" onClick={() => setUploadOpen(true)}>
+              <Upload size={15} />
+              Import dataset
+            </button>
+          </div>
+          {error && (
+            <div role="alert" className="alert error">
+              {error}
+              <button aria-label="Dismiss error" onClick={() => setError("")}>
+                <X size={15} />
+              </button>
+            </div>
+          )}
+          {notice && (
+            <div role="status" className="alert good">
+              <Check size={15} />
+              {notice}
+              <button
+                aria-label="Dismiss notification"
+                onClick={() => setNotice("")}
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
+          <div className="provenance-banner">
+            <div className="banner-icon">
+              <FlaskConical size={17} />
+            </div>
+            <span>
+              <b>Research environment</b>
+              <span className="banner-separator">/</span>Synthetic fixtures and
+              ULB imports are tracked separately. Scores are uncalibrated.
+            </span>
+            <span className="banner-tag">EXPERIMENTAL</span>
+          </div>
+          {page === "overview" && (
+            <OverviewPage
+              revision={revision}
+              onSelect={setSelectedTx}
+              fail={fail}
+            />
+          )}
+          {page === "transactions" && (
+            <Transactions
+              revision={revision}
+              onSelect={setSelectedTx}
+              fail={fail}
+            />
+          )}
+          {page === "detection" && (
+            <Detection
+              revision={revision}
+              refresh={refresh}
+              upload={() => setUploadOpen(true)}
+              notify={setNotice}
+              fail={fail}
+            />
+          )}
+          {page === "laboratory" && (
+            <Laboratory revision={revision} fail={fail} />
+          )}
+          {page === "investigations" && (
+            <Investigations
+              revision={revision}
+              onSelect={setSelectedTx}
+              fail={fail}
+              notify={setNotice}
+            />
+          )}
+          {page === "graph" && <Graph fail={fail} />}
+          {page === "copilot" && <Copilot settings={settings} fail={fail} />}
+          {page === "settings" && <SettingsPage settings={settings} />}
+          {!pages.some((p) => p[0] === page) && (
+            <Empty>
+              Unknown page. <a href="#overview">Return to overview</a>.
+            </Empty>
+          )}
+          <footer>
+            <span>
+              <Focus size={12} />
+              ARGUS Intelligence Platform
+            </span>
+            <span>
+              Research prototype <i /> No real financial system connections
+            </span>
+          </footer>
+        </main>
+      </div>
+      {uploadOpen && (
+        <UploadModal
+          close={() => setUploadOpen(false)}
+          done={(message) => {
+            setNotice(message);
+            setUploadOpen(false);
+            refresh();
+          }}
+          fail={fail}
+        />
+      )}
+      {selectedTx != null && (
+        <TransactionDrawer
+          id={selectedTx}
+          close={() => setSelectedTx(null)}
+          fail={fail}
+          notify={setNotice}
+          refresh={refresh}
+        />
+      )}
+    </div>
+  );
+}
+
+function OverviewPage({
+  revision,
+  onSelect,
+  fail,
+}: {
+  revision: number;
+  onSelect: (id: number) => void;
+  fail: (e: unknown) => void;
+}) {
+  const [data, setData] = useState<Overview | null>(null),
+    [experiment, setExperiment] = useState<Experiment | null>(null);
+  useEffect(() => {
+    api<Overview>("/overview").then(setData).catch(fail);
+    api<Models>("/models")
+      .then((d) =>
+        setExperiment(
+          d.experiments.find((e) => e.version === d.active_version) ?? null,
+        ),
+      )
+      .catch(fail);
+  }, [revision]);
+  if (!data) return <Loading />;
+  const model = experiment?.models.find(
+    (m) => m.name === experiment.selected_model,
+  );
+  return (
+    <>
+      <div className="section-kicker">
+        <span>
+          <span className="online-dot" /> LIVE WORKSPACE SNAPSHOT
+        </span>
+        <span className="mono">
+          {data.scored.toLocaleString()} scored / {data.total.toLocaleString()}{" "}
+          stored
+        </span>
+      </div>
+      <div className="metrics-grid">
+        <Metric
+          label="TOTAL TRANSACTIONS"
+          value={data.total.toLocaleString()}
+          detail={
+            <>
+              <Database size={12} />
+              {Object.entries(data.provenance_counts)
+                .map(([p, n]) => `${n} ${p}`)
+                .join(" · ") || "No datasets imported"}
+            </>
+          }
+        />
+        <Metric
+          label="FLAGGED FOR REVIEW"
+          value={data.flagged.toLocaleString()}
+          accent
+          detail={
+            <>
+              <span className="tiny-dot red" />
+              {percent(data.scored ? data.flagged / data.scored : null)} of
+              scored transactions
+            </>
+          }
+        />
+        <Metric
+          label="TRANSACTION VOLUME"
+          value={
+            <>
+              <span className="metric-unit">∑</span>
+              {amount(data.volume)}
+            </>
+          }
+          detail={<>Amount units · source denomination unspecified</>}
+        />
+        <Metric
+          label="OPEN INVESTIGATIONS"
+          value={data.open_cases}
+          detail={
+            <button
+              className="text-button"
+              onClick={() => nav("investigations")}
+            >
+              View investigation queue <ArrowRight size={12} />
+            </button>
+          }
+        />
+      </div>
+      <div className="chart-grid">
+        <Panel
+          title="Transaction activity"
+          meta={
+            <span className="legend">
+              <i />
+              All transactions <i className="red" />
+              Flagged
+            </span>
+          }
+        >
+          <div className="chart-subtitle">
+            Transaction count by hour from dataset start
+          </div>
+          {data.trend.length ? (
+            <div className="chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={data.trend}
+                  margin={{ top: 14, right: 20, bottom: 0, left: -24 }}
+                >
+                  <defs>
+                    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4f9baa" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#4f9baa" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#202b38" vertical={false} />
+                  <XAxis
+                    dataKey="hour"
+                    tickFormatter={(v) => `${v}h`}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={40}
+                  />
+                  <YAxis tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={tipStyle}
+                    labelFormatter={(v) => `Hour ${v}`}
+                  />
+                  <Area
+                    isAnimationActive={false}
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#5bb5b7"
+                    fill="url(#area)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    isAnimationActive={false}
+                    type="monotone"
+                    dataKey="flagged"
+                    stroke="#f47974"
+                    fill="transparent"
+                    strokeWidth={1.5}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <Empty>Import data to view transaction activity.</Empty>
+          )}
+          <div className="chart-foot">
+            <span>Dataset time · 1 hour intervals</span>
+            <span className="mono">{data.trend.length} active intervals</span>
+          </div>
+        </Panel>
+        <Panel
+          title="Risk distribution"
+          meta={<span className="mini-tag">MODEL SCORES</span>}
+        >
+          <div className="chart-subtitle">
+            Uncalibrated score · {data.scored} transactions
+          </div>
+          <div className="chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={data.risk_distribution}
+                margin={{ top: 14, right: 14, bottom: 0, left: -24 }}
+              >
+                <CartesianGrid stroke="#202b38" vertical={false} />
+                <XAxis
+                  dataKey="bucket"
+                  interval={2}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={tipStyle} />
+                <Bar
+                  isAnimationActive={false}
+                  dataKey="count"
+                  fill="#42968f"
+                  radius={[3, 3, 0, 0]}
+                  maxBarSize={24}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="chart-foot">
+            <span>Score range</span>
+            <span className="teal">0 — 100%</span>
+          </div>
+        </Panel>
+      </div>
+      <div className="lower-grid">
+        <Panel
+          title="Flagged transactions"
+          meta={
+            <button className="text-button" onClick={() => nav("transactions")}>
+              View explorer <ArrowRight size={13} />
+            </button>
+          }
+        >
+          <div className="chart-subtitle">
+            Most recently imported records requiring analyst review
+          </div>
+          <TxTable
+            items={data.recent_flagged.slice(0, 5)}
+            onSelect={onSelect}
+          />
+        </Panel>
+        <Panel
+          title="Detection model"
+          meta={
+            <span className="status-dot-label">
+              <span className="online-dot" />
+              {model ? "ACTIVE" : "UNTRAINED"}
+            </span>
+          }
+        >
+          {model && experiment ? (
+            <div className="model-card">
+              <div className="model-icon">
+                <FlaskConical size={24} />
+              </div>
+              <h3>{model.name}</h3>
+              <p>Selected by validation average precision</p>
+              <div className="model-source">
+                {experiment.provenance.toUpperCase()} TRAINING DATA
+              </div>
+              <div className="model-stat">
+                <span>Test precision</span>
+                <b>{percent(model.test.precision)}</b>
+              </div>
+              <div className="model-stat">
+                <span>Test recall</span>
+                <b>{percent(model.test.recall)}</b>
+              </div>
+              <div className="model-stat">
+                <span>Test PR-AUC / AP</span>
+                <b className="teal">
+                  {model.test.average_precision.toFixed(3)}
+                </b>
+              </div>
+              <button
+                className="secondary full"
+                onClick={() => nav("laboratory")}
+              >
+                Open ML Laboratory <ArrowRight size={13} />
+              </button>
+              <small>Synthetic results do not establish ULB performance.</small>
+            </div>
+          ) : (
+            <Empty>Train a model using the README instructions.</Empty>
+          )}
+        </Panel>
+      </div>
+      <div className="insight-bar">
+        <ShieldCheck size={19} />
+        <span>
+          <b>
+            Labeled-data detection rate: {percent(data.fraud_detection_rate)}
+          </b>
+          <small>
+            Computed over {data.labeled_scored_fraud} labeled fraud records with
+            stored scores. This is an operational view, separate from held-out
+            test evaluation.
+          </small>
+        </span>
+      </div>
+    </>
+  );
+}
+
+function Loading() {
+  return (
+    <div className="loading">
+      <LoaderCircle className="spin" size={20} />
+      Loading workspace data…
+    </div>
+  );
+}
+function Transactions({
+  revision,
+  onSelect,
+  fail,
+}: {
+  revision: number;
+  onSelect: (id: number) => void;
+  fail: (e: unknown) => void;
+}) {
+  const [q, setQ] = useState(""),
+    [flag, setFlag] = useState("all"),
+    [source, setSource] = useState("all"),
+    [sort, setSort] = useState("risk_score"),
+    [direction, setDirection] = useState("desc"),
+    [page, setPage] = useState(1),
+    [data, setData] = useState<{ items: Tx[]; total: number } | null>(null);
+  const params = new URLSearchParams({
+    q,
+    sort,
+    direction,
+    page: String(page),
+    page_size: "15",
+    ...(flag === "all" ? {} : { flagged: flag }),
+    ...(source === "all" ? {} : { provenance: source }),
+  });
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(
+      () =>
+        api<{ items: Tx[]; total: number }>("/transactions?" + params)
+          .then((d) => {
+            if (!cancelled) setData(d);
+          })
+          .catch(fail),
+      180,
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [q, flag, source, sort, direction, page, revision]);
+  return (
+    <Panel
+      title="Transaction explorer"
+      meta={
+        <a
+          className="secondary"
+          href={
+            "/api/v1/transactions/export?" +
+            new URLSearchParams({
+              q,
+              ...(flag === "all" ? {} : { flagged: flag }),
+              ...(source === "all" ? {} : { provenance: source }),
+            })
+          }
+        >
+          <ArrowDownToLine size={14} />
+          Export CSV
+        </a>
+      }
+    >
+      <div className="toolbar">
+        <label className="search-input">
+          <Search size={16} />
+          <input
+            aria-label="Search transactions"
+            placeholder="Search transaction ID or dataset…"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+          />
+        </label>
+        <select
+          aria-label="Assessment filter"
+          value={flag}
+          onChange={(e) => {
+            setFlag(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="all">All assessments</option>
+          <option value="true">Flagged only</option>
+          <option value="false">Clear only</option>
+        </select>
+        <select
+          aria-label="Data source filter"
+          value={source}
+          onChange={(e) => {
+            setSource(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="all">All sources</option>
+          <option value="synthetic">Synthetic</option>
+          <option value="ulb">ULB benchmark</option>
+        </select>
+        <select
+          aria-label="Sort transactions"
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+        >
+          <option value="risk_score">Risk score</option>
+          <option value="amount">Amount</option>
+          <option value="time">Dataset time</option>
+          <option value="id">Transaction ID</option>
+        </select>
+        <button
+          className="icon-button"
+          aria-label="Reverse sort direction"
+          onClick={() => setDirection((d) => (d === "asc" ? "desc" : "asc"))}
+        >
+          <SlidersHorizontal size={16} />
+        </button>
+      </div>
+      {data ? (
+        <>
+          <TxTable items={data.items} onSelect={onSelect} />
+          <div className="pagination">
+            <span>
+              {data.total.toLocaleString()} results · Page {page} of{" "}
+              {Math.max(1, Math.ceil(data.total / 15))}
+            </span>
+            <div>
+              <button
+                className="secondary"
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <ChevronLeft size={14} />
+                Previous
+              </button>
+              <button
+                className="secondary"
+                disabled={page * 15 >= data.total}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <Loading />
+      )}
+    </Panel>
+  );
+}
+
+function UploadModal({
+  close,
+  done,
+  fail,
+}: {
+  close: () => void;
+  done: (s: string) => void;
+  fail: (e: unknown) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null),
+    [source, setSource] = useState("synthetic"),
+    [busy, setBusy] = useState(false),
+    [localError, setLocalError] = useState("");
+  async function upload() {
+    if (!file) return;
+    setBusy(true);
+    setLocalError("");
+    const body = new FormData();
+    body.append("file", file);
+    body.append("provenance", source);
+    try {
+      const result = await api<{
+        imported: number;
+        duplicates: number;
+        model_note: string;
+      }>("/datasets/upload", { method: "POST", body });
+      done(
+        `Imported ${result.imported} transactions; ${result.duplicates} duplicates skipped. ${result.model_note}`,
+      );
+    } catch (e) {
+      setLocalError((e as Error).message);
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="overlay" onClick={close}>
+      <section
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="upload-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="panel-head">
+          <h2 id="upload-title">Import transaction dataset</h2>
+          <button
+            className="icon-button"
+            onClick={close}
+            aria-label="Close import"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="modal-body">
+          <p>
+            CSV schema: Time, V1–V28, Amount, and optional Class. Maximum 64
+            MiB. Uploaded data stays in your configured database.
+          </p>
+          <label className="field">
+            Data provenance
+            <select value={source} onChange={(e) => setSource(e.target.value)}>
+              <option value="synthetic">Synthetic demonstration data</option>
+              <option value="ulb">ULB benchmark data</option>
+            </select>
+          </label>
+          <label className="dropzone">
+            <Upload size={28} />
+            <strong>{file?.name ?? "Choose a CSV file"}</strong>
+            <span>Schema validation and duplicate detection included</span>
+            <input
+              type="file"
+              accept=".csv"
+              aria-label="CSV file"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <p className="muted">
+            Imports are scored only when the active model has matching
+            provenance. Train on your authorized ULB copy before scoring ULB
+            data.
+          </p>
+          {localError && (
+            <div role="alert" className="error-text">
+              {localError}
+            </div>
+          )}
+          <button
+            className="primary full"
+            disabled={!file || busy}
+            onClick={upload}
+          >
+            {busy ? (
+              <LoaderCircle className="spin" size={15} />
+            ) : (
+              <Upload size={15} />
+            )}{" "}
+            {busy ? "Validating and importing…" : "Import transactions"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function TransactionDrawer({
+  id,
+  close,
+  fail,
+  notify,
+  refresh,
+}: {
+  id: number;
+  close: () => void;
+  fail: (e: unknown) => void;
+  notify: (s: string) => void;
+  refresh: () => void;
+}) {
+  const [tx, setTx] = useState<Tx | null>(null),
+    [explanation, setExplanation] = useState<{
+      features: { feature: string; value: number; contribution: number }[];
+      model_version: string;
+      matches_stored_prediction: boolean;
+      caveat: string;
+    } | null>(null),
+    [busy, setBusy] = useState(false),
+    [cases, setCases] = useState<Case[]>([]),
+    [linkId, setLinkId] = useState("");
+  useEffect(() => {
+    api<Tx>(`/transactions/${id}`).then(setTx).catch(fail);
+    api<Case[]>("/cases").then(setCases).catch(fail);
+  }, [id]);
+  async function explain() {
+    setBusy(true);
+    try {
+      setExplanation(await api(`/transactions/${id}/explanation`));
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function create() {
+    try {
+      const c = await api<Case>(
+        "/cases",
+        send("POST", {
+          title: `Review TX-${String(id).padStart(6, "0")}`,
+          priority: "High",
+          transaction_ids: [id],
+        }),
+      );
+      notify(`Investigation #${c.id} created and linked.`);
+      refresh();
+      close();
+      nav("investigations");
+    } catch (e) {
+      fail(e);
+    }
+  }
+  async function link() {
+    if (!linkId) return;
+    try {
+      await api(
+        `/cases/${linkId}/transactions`,
+        send("POST", { transaction_id: id }),
+      );
+      notify(`Transaction linked to investigation #${linkId}.`);
+      setTx({
+        ...tx!,
+        case_ids: [...new Set([...(tx?.case_ids ?? []), Number(linkId)])],
+      });
+      refresh();
+    } catch (e) {
+      fail(e);
+    }
+  }
+  return (
+    <div className="overlay drawer-overlay" onClick={close}>
+      <section
+        className="drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Transaction details"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="panel-head">
+          <h2 className="mono">TX-{String(id).padStart(6, "0")}</h2>
+          <button
+            className="icon-button"
+            aria-label="Close transaction"
+            onClick={close}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        {tx ? (
+          <div className="drawer-body">
+            <div className="detail-heading">
+              <Risk tx={tx} />
+              <span className="mini-tag">{tx.provenance.toUpperCase()}</span>
+            </div>
+            <div className="detail-score">
+              <span>MODEL RISK SCORE</span>
+              <strong>{percent(tx.risk_score)}</strong>
+              <small>Uncalibrated · threshold {percent(tx.threshold)}</small>
+            </div>
+            <div className="detail-row">
+              <span>Amount (unspecified units)</span>
+              <b className="mono">{amount(tx.amount)}</b>
+            </div>
+            <div className="detail-row">
+              <span>Dataset time</span>
+              <b>{tx.time.toFixed(1)} seconds</b>
+            </div>
+            <div className="detail-row">
+              <span>Observed label</span>
+              <b>
+                {tx.label == null
+                  ? "Unlabeled"
+                  : tx.label === 1
+                    ? "Fraud"
+                    : "Legitimate"}
+              </b>
+            </div>
+            <div className="detail-row">
+              <span>Model version</span>
+              <code>{tx.model_version ?? "Unscored"}</code>
+            </div>
+            <h3>Investigation</h3>
+            <div className="case-links">
+              {tx.case_ids?.map((c) => (
+                <button
+                  className="text-button"
+                  key={c}
+                  onClick={() => {
+                    close();
+                    nav("investigations");
+                  }}
+                >
+                  Case #{c} <ArrowRight size={12} />
+                </button>
+              ))}
+            </div>
+            <button className="primary full" onClick={create}>
+              <Plus size={15} />
+              Create linked investigation
+            </button>
+            {cases.length > 0 && (
+              <div className="inline-form">
+                <select
+                  aria-label="Existing investigation"
+                  value={linkId}
+                  onChange={(e) => setLinkId(e.target.value)}
+                >
+                  <option value="">Link to existing case…</option>
+                  {cases.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      #{c.id} {c.title}
+                    </option>
+                  ))}
+                </select>
+                <button className="secondary" disabled={!linkId} onClick={link}>
+                  Link
+                </button>
+              </div>
+            )}
+            <h3>Prediction explanation</h3>
+            <p className="muted">
+              SHAP contributions describe the model’s use of anonymized
+              features. They cannot establish why a real transaction is
+              fraudulent.
+            </p>
+            <button
+              className="secondary full"
+              disabled={busy}
+              onClick={explain}
+            >
+              {busy ? (
+                <LoaderCircle size={15} className="spin" />
+              ) : (
+                <FlaskConical size={15} />
+              )}
+              Compute SHAP explanation
+            </button>
+            {explanation && (
+              <div className="explanation">
+                {!explanation.matches_stored_prediction && (
+                  <p className="error-text">
+                    Active model differs from stored score. This explanation
+                    uses {explanation.model_version}.
+                  </p>
+                )}
+                <p className="muted">
+                  Top contributions · positive values increase model output
+                </p>
+                {explanation.features.slice(0, 8).map((f) => (
+                  <div className="shap-row" key={f.feature}>
+                    <span className="mono">{f.feature}</span>
+                    <div>
+                      <i
+                        className={f.contribution > 0 ? "positive" : "negative"}
+                        style={{
+                          width: `${Math.min(Math.abs(f.contribution) * 22, 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <b className="mono">
+                      {f.contribution > 0 ? "+" : ""}
+                      {f.contribution.toFixed(3)}
+                    </b>
+                  </div>
+                ))}
+              </div>
+            )}
+            <details>
+              <summary>All 30 model features</summary>
+              <div className="feature-grid">
+                {Object.entries(tx.features ?? {}).map(([k, v]) => (
+                  <div key={k}>
+                    <span>{k}</span>
+                    <code>{v.toFixed(4)}</code>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        ) : (
+          <Loading />
+        )}
+      </section>
+    </div>
+  );
+}
+
+function Detection({
+  revision,
+  refresh,
+  upload,
+  notify,
+  fail,
+}: {
+  revision: number;
+  refresh: () => void;
+  upload: () => void;
+  notify: (s: string) => void;
+  fail: (e: unknown) => void;
+}) {
+  const [datasets, setDatasets] = useState<Dataset[]>([]),
+    [models, setModels] = useState<Models | null>(null),
+    [busy, setBusy] = useState<number | null>(null);
+  useEffect(() => {
+    api<Dataset[]>("/datasets").then(setDatasets).catch(fail);
+    api<Models>("/models").then(setModels).catch(fail);
+  }, [revision]);
+  async function score(id: number) {
+    setBusy(id);
+    try {
+      const r = await api<{ scored: number }>(`/datasets/${id}/score`, {
+        method: "POST",
+      });
+      notify(`Scored ${r.scored} transactions using the active model.`);
+      refresh();
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <>
+      <div className="two-grid">
+        <Panel title="Inference pipeline">
+          <div className="pipeline-steps">
+            {[
+              [
+                "01",
+                "Validate schema",
+                "Time, V1–V28, Amount · optional Class",
+              ],
+              [
+                "02",
+                "Resolve provenance",
+                "ULB and synthetic models stay separate",
+              ],
+              ["03", "Score transactions", "Actual serialized model inference"],
+              [
+                "04",
+                "Persist evidence",
+                "Score, threshold, model version, source",
+              ],
+            ].map(([n, title, desc]) => (
+              <div key={n}>
+                <span className="step-number">{n}</span>
+                <div>
+                  <h3>{title}</h3>
+                  <p>{desc}</p>
+                </div>
+                <Check size={16} />
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Active model">
+          <div className="padded">
+            <p className="muted">Current model version</p>
+            <code className="wrap-code">
+              {models?.active_version ?? "No model trained"}
+            </code>
+            <p>
+              Train reproducibly from the command line. A new experiment
+              activates only after its artifacts have been written.
+            </p>
+            <pre>
+              PYTHONPATH=backend uv run python -m app.ml
+              <br /> --csv data/private/creditcard.csv
+            </pre>
+            <button className="secondary" onClick={() => nav("laboratory")}>
+              Inspect experiments
+              <ArrowRight size={14} />
+            </button>
+          </div>
+        </Panel>
+      </div>
+      <Panel
+        title="Imported datasets"
+        meta={
+          <button className="secondary" onClick={upload}>
+            <Plus size={14} />
+            Import CSV
+          </button>
+        }
+      >
+        {datasets.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Dataset</th>
+                  <th>Source</th>
+                  <th>Stored rows</th>
+                  <th>Duplicates</th>
+                  <th>Batch inference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {datasets.map((d) => (
+                  <tr key={d.id}>
+                    <td>
+                      {d.name}
+                      <small className="table-sub">
+                        {new Date(d.created_at).toLocaleString()}
+                      </small>
+                    </td>
+                    <td>
+                      <span className="badge neutral">{d.provenance}</span>
+                    </td>
+                    <td className="mono">{d.rows}</td>
+                    <td className="mono">{d.duplicates}</td>
+                    <td>
+                      <button
+                        className="secondary"
+                        disabled={busy !== null || d.rows === 0}
+                        onClick={() => score(d.id)}
+                      >
+                        {busy === d.id ? (
+                          <LoaderCircle size={14} className="spin" />
+                        ) : (
+                          <ShieldCheck size={14} />
+                        )}
+                        Score dataset
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty>No datasets imported yet.</Empty>
+        )}
+      </Panel>
+    </>
+  );
+}
+
+function Laboratory({
+  revision,
+  fail,
+}: {
+  revision: number;
+  fail: (e: unknown) => void;
+}) {
+  const [models, setModels] = useState<Models | null>(null),
+    [version, setVersion] = useState(""),
+    [selected, setSelected] = useState("");
+  useEffect(() => {
+    api<Models>("/models")
+      .then((d) => {
+        setModels(d);
+        setVersion(d.active_version ?? "");
+      })
+      .catch(fail);
+  }, [revision]);
+  const experiment = models?.experiments.find((e) => e.version === version),
+    model =
+      experiment?.models.find((m) => m.name === selected) ??
+      experiment?.models.find((m) => m.name === experiment.selected_model);
+  if (!models) return <Loading />;
+  if (!experiment || !model)
+    return (
+      <Empty>
+        No trained experiments. Run{" "}
+        <code>PYTHONPATH=backend uv run python -m app.ml --synthetic</code> or
+        train from an authorized ULB CSV.
+      </Empty>
+    );
+  return (
+    <>
+      <div className="lab-toolbar">
+        <label className="field">
+          Experiment
+          <select
+            value={version}
+            onChange={(e) => {
+              setVersion(e.target.value);
+              setSelected("");
+            }}
+          >
+            {models.experiments.map((e) => (
+              <option key={e.version} value={e.version}>
+                {e.provenance} · {e.version}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="secondary"
+          onClick={() =>
+            download(`argus-experiment-${version}.json`, experiment)
+          }
+        >
+          <ArrowDownToLine size={14} />
+          Export experiment JSON
+        </button>
+      </div>
+      <div className="experiment-info">
+        <span className="badge neutral">
+          {experiment.provenance.toUpperCase()}
+        </span>
+        <span>{experiment.rows.toLocaleString()} rows</span>
+        <span>{experiment.fraud_rows} fraud</span>
+        <span>{experiment.split} split</span>
+        <span>Seed {experiment.seed}</span>
+        <span>{experiment.duplicates_removed} duplicates removed</span>
+      </div>
+      <Panel
+        title="Model comparison"
+        meta={
+          <span className="muted">
+            Click a model to inspect held-out results
+          </span>
+        }
+      >
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Algorithm</th>
+                <th>Validation AP</th>
+                <th>Test precision</th>
+                <th>Test recall</th>
+                <th>Test F1</th>
+                <th>Test AP</th>
+                <th>Test ROC-AUC</th>
+              </tr>
+            </thead>
+            <tbody>
+              {experiment.models.map((m) => (
+                <tr
+                  key={m.name}
+                  className={model.name === m.name ? "selected-row" : ""}
+                  onClick={() => setSelected(m.name)}
+                >
+                  <td>
+                    <button
+                      className="text-button"
+                      onClick={() => setSelected(m.name)}
+                    >
+                      {m.name}
+                    </button>
+                    {m.name === experiment.selected_model && (
+                      <small className="table-sub teal">
+                        Selected by validation AP
+                      </small>
+                    )}
+                  </td>
+                  <td className="mono">
+                    {m.validation_average_precision.toFixed(4)}
+                  </td>
+                  <td className="mono">{percent(m.test.precision)}</td>
+                  <td className="mono">{percent(m.test.recall)}</td>
+                  <td className="mono">{m.test.f1.toFixed(4)}</td>
+                  <td className="mono">
+                    {m.test.average_precision.toFixed(4)}
+                  </td>
+                  <td className="mono">{m.test.roc_auc.toFixed(4)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+      <div className="two-grid">
+        <Panel title={`${model.name} · Precision-recall`}>
+          <div className="chart-subtitle">
+            Held-out test data · threshold {model.threshold.toFixed(4)} · FPR{" "}
+            {percent(model.test.false_positive_rate)}
+          </div>
+          <div className="chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={model.test.pr_curve}
+                margin={{ top: 10, right: 25, bottom: 10, left: -15 }}
+              >
+                <CartesianGrid stroke="#202b38" />
+                <XAxis
+                  type="number"
+                  dataKey="recall"
+                  domain={[0, 1]}
+                  tickLine={false}
+                />
+                <YAxis domain={[0, 1]} tickLine={false} />
+                <Tooltip contentStyle={tipStyle} />
+                <Line
+                  isAnimationActive={false}
+                  dataKey="precision"
+                  stroke="#64c2ba"
+                  dot={false}
+                  strokeWidth={2}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="chart-foot">Recall → · Precision ↑</div>
+        </Panel>
+        <Panel
+          title="Confusion matrix"
+          meta={<span className="mini-tag">TEST PARTITION</span>}
+        >
+          <div className="confusion">
+            <div />
+            <span>Predicted clear</span>
+            <span>Predicted fraud</span>
+            <span>Actual clear</span>
+            <b>
+              {model.test.confusion_matrix[0][0]}
+              <small>True negative</small>
+            </b>
+            <b className="warning">
+              {model.test.confusion_matrix[0][1]}
+              <small>False positive</small>
+            </b>
+            <span>Actual fraud</span>
+            <b className="warning">
+              {model.test.confusion_matrix[1][0]}
+              <small>False negative</small>
+            </b>
+            <b>
+              {model.test.confusion_matrix[1][1]}
+              <small>True positive</small>
+            </b>
+          </div>
+        </Panel>
+      </div>
+      <div className="two-grid">
+        <Panel title="Global feature importance">
+          <div className="padded">
+            {model.feature_importance.slice(0, 10).map((f) => (
+              <div className="importance-row" key={f.feature}>
+                <code>{f.feature}</code>
+                <div>
+                  <i
+                    style={{
+                      width: `${(f.importance / model.feature_importance[0].importance) * 100}%`,
+                    }}
+                  />
+                </div>
+                <span className="mono">{f.importance.toFixed(3)}</span>
+              </div>
+            ))}
+            <p className="muted">
+              Absolute standardized coefficients for logistic regression;
+              impurity / split importance for tree models. These scales are not
+              comparable across algorithms.
+            </p>
+          </div>
+        </Panel>
+        <Panel title="Experiment integrity">
+          <div className="padded">
+            {Object.entries(experiment.partitions).map(([name, p]) => (
+              <div className="detail-row" key={name}>
+                <span>{name}</span>
+                <b>
+                  {p.rows} rows · {p.fraud} fraud
+                </b>
+              </div>
+            ))}
+            <p>
+              Preprocessing is fitted on training data. Candidate parameters and
+              decision thresholds are selected using validation data. Algorithm
+              selection precedes test evaluation.
+            </p>
+            <p className="muted">
+              {experiment.provenance === "synthetic"
+                ? "These results measure an artificial fixture. No ULB benchmark claim is made."
+                : "ULB is anonymized and covers a limited time window. Generalization to live banking systems is unverified."}
+            </p>
+            <code>
+              {new Date(experiment.created_at).toLocaleString()} ·{" "}
+              {experiment.duration_seconds}s
+            </code>
+          </div>
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+function Investigations({
+  revision,
+  onSelect,
+  fail,
+  notify,
+}: {
+  revision: number;
+  onSelect: (id: number) => void;
+  fail: (e: unknown) => void;
+  notify: (s: string) => void;
+}) {
+  const [cases, setCases] = useState<Case[]>([]),
+    [q, setQ] = useState(""),
+    [title, setTitle] = useState(""),
+    [selected, setSelected] = useState<number | null>(null),
+    [note, setNote] = useState(""),
+    [decision, setDecision] = useState(""),
+    [busy, setBusy] = useState(false);
+  const active = cases.find((c) => c.id === selected);
+  async function load() {
+    try {
+      const data = await api<Case[]>("/cases?q=" + encodeURIComponent(q));
+      setCases(data);
+    } catch (e) {
+      fail(e);
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [q, revision]);
+  useEffect(
+    () => setDecision(active?.decision ?? ""),
+    [selected, active?.decision],
+  );
+  async function create() {
+    setBusy(true);
+    try {
+      const c = await api<Case>("/cases", send("POST", { title }));
+      setTitle("");
+      setSelected(c.id);
+      await load();
+      notify(`Investigation #${c.id} created.`);
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function update(patch: Record<string, string>) {
+    try {
+      await api(`/cases/${selected}`, send("PATCH", patch));
+      await load();
+      notify("Investigation saved.");
+    } catch (e) {
+      fail(e);
+    }
+  }
+  async function addNote() {
+    setBusy(true);
+    try {
+      await api(`/cases/${selected}/notes`, send("POST", { body: note }));
+      setNote("");
+      await load();
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Panel
+        title="Investigation queue"
+        meta={<span className="mono muted">{cases.length} matching cases</span>}
+      >
+        <div className="toolbar">
+          <label className="search-input">
+            <Search size={15} />
+            <input
+              aria-label="Search investigations"
+              placeholder="Search titles, notes, decisions…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </label>
+          <input
+            aria-label="New investigation title"
+            placeholder="New investigation title…"
+            value={title}
+            maxLength={200}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <button
+            className="primary"
+            disabled={title.trim().length < 3 || busy}
+            onClick={create}
+          >
+            <Plus size={15} />
+            Create case
+          </button>
+        </div>
+        {cases.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Case</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                  <th>Transactions</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cases.map((c) => (
+                  <tr
+                    key={c.id}
+                    onClick={() => setSelected(c.id)}
+                    className={selected === c.id ? "selected-row" : ""}
+                  >
+                    <td>
+                      <button
+                        className="text-button"
+                        onClick={() => setSelected(c.id)}
+                      >
+                        #{c.id} · {c.title}
+                      </button>
+                    </td>
+                    <td>
+                      <span className="badge neutral">{c.status}</span>
+                    </td>
+                    <td>
+                      <span
+                        className={
+                          "badge " +
+                          (["Critical", "High"].includes(c.priority)
+                            ? "danger"
+                            : "neutral")
+                        }
+                      >
+                        {c.priority}
+                      </span>
+                    </td>
+                    <td className="mono">{c.transaction_ids.length}</td>
+                    <td>{new Date(c.created_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty>
+            No investigations yet. Create a case here or from a transaction.
+          </Empty>
+        )}
+      </Panel>
+      {active && (
+        <Panel
+          title={`Investigation #${active.id} · ${active.title}`}
+          meta={
+            <button
+              className="secondary"
+              onClick={async () => {
+                try {
+                  download(
+                    `argus-case-${active.id}.json`,
+                    await api(`/cases/${active.id}/export`),
+                  );
+                } catch (e) {
+                  fail(e);
+                }
+              }}
+            >
+              <ArrowDownToLine size={14} />
+              Export report
+            </button>
+          }
+        >
+          <div className="case-detail">
+            <div>
+              <div className="two-grid">
+                <label className="field">
+                  Status
+                  <select
+                    aria-label="Case status"
+                    value={active.status}
+                    onChange={(e) => update({ status: e.target.value })}
+                  >
+                    {[
+                      "Open",
+                      "In Review",
+                      "Escalated",
+                      "Resolved",
+                      "False Positive",
+                    ].map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Priority
+                  <select
+                    aria-label="Case priority"
+                    value={active.priority}
+                    onChange={(e) => update({ priority: e.target.value })}
+                  >
+                    {["Low", "Medium", "High", "Critical"].map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <h3>Linked transactions</h3>
+              <div className="case-links">
+                {active.transaction_ids.map((id) => (
+                  <button
+                    className="secondary mono"
+                    key={id}
+                    onClick={() => onSelect(id)}
+                  >
+                    TX-{String(id).padStart(6, "0")}
+                    <ArrowRight size={13} />
+                  </button>
+                ))}
+                {!active.transaction_ids.length && (
+                  <p className="muted">
+                    Open a transaction to link it to this case.
+                  </p>
+                )}
+              </div>
+              <label className="field">
+                Analyst decision
+                <textarea
+                  aria-label="Analyst decision"
+                  value={decision}
+                  onChange={(e) => setDecision(e.target.value)}
+                  placeholder="Record your assessment and supporting evidence…"
+                  maxLength={10000}
+                />
+              </label>
+              <button
+                className="secondary"
+                onClick={() => update({ decision })}
+              >
+                Save decision
+              </button>
+            </div>
+            <div>
+              <h3>Investigation notes</h3>
+              <div className="notes">
+                {active.notes.map((n) => (
+                  <div className="note" key={n.id}>
+                    <span className="mono">
+                      {new Date(n.created_at).toLocaleString()}
+                    </span>
+                    <p>{n.body}</p>
+                  </div>
+                ))}
+                {!active.notes.length && (
+                  <p className="muted">No notes recorded.</p>
+                )}
+              </div>
+              <label className="field">
+                Add a note
+                <textarea
+                  aria-label="Investigation note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Record an observation…"
+                  maxLength={10000}
+                />
+              </label>
+              <button
+                className="primary"
+                disabled={!note.trim() || busy}
+                onClick={addNote}
+              >
+                <Plus size={14} />
+                Add note
+              </button>
+            </div>
+          </div>
+        </Panel>
+      )}
+    </>
+  );
+}
+
+function Graph({ fail }: { fail: (e: unknown) => void }) {
+  const host = useRef<HTMLDivElement>(null),
+    instance = useRef<cytoscape.Core | null>(null),
+    [selected, setSelected] = useState<Record<string, string> | null>(null),
+    [kind, setKind] = useState("All"),
+    [count, setCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    api<{
+      nodes: cytoscape.ElementDefinition[];
+      edges: cytoscape.ElementDefinition[];
+    }>("/graph")
+      .then((data) => {
+        if (cancelled || !host.current) return;
+        setCount(data.nodes.length);
+        const graph = cytoscape({
+          container: host.current,
+          elements: [...data.nodes, ...data.edges],
+          layout: { name: "cose", animate: false, nodeRepulsion: () => 9000 },
+          style: [
+            {
+              selector: "node",
+              style: {
+                "background-color": "#438d92",
+                label: "data(label)",
+                "font-size": 10,
+                color: "#a5b4c5",
+                "text-valign": "bottom",
+                "text-margin-y": 8,
+                width: 20,
+                height: 20,
+              },
+            },
+            {
+              selector: 'node[kind="Account"]',
+              style: {
+                "background-color": "#769cdb",
+                shape: "round-rectangle",
+                width: 34,
+                height: 34,
+              },
+            },
+            {
+              selector: 'node[kind="Device"]',
+              style: {
+                "background-color": "#e5ac64",
+                shape: "diamond",
+                width: 30,
+                height: 30,
+              },
+            },
+            {
+              selector: 'node[kind="Merchant"]',
+              style: {
+                "background-color": "#a391c4",
+                shape: "hexagon",
+                width: 28,
+                height: 28,
+              },
+            },
+            {
+              selector: "edge",
+              style: {
+                width: 1,
+                "line-color": "#334454",
+                "target-arrow-color": "#334454",
+                "target-arrow-shape": "triangle",
+                "curve-style": "bezier",
+              },
+            },
+            {
+              selector: ":selected",
+              style: {
+                "background-color": "#e9f2f6",
+                "line-color": "#77bfc2",
+                "border-width": 3,
+                "border-color": "#62c2c0",
+              },
+            },
+          ],
+        });
+        instance.current = graph;
+        graph.on("tap", "node", (e) => setSelected(e.target.data()));
+      })
+      .catch(fail);
+    return () => {
+      cancelled = true;
+      instance.current?.destroy();
+    };
+  }, []);
+  useEffect(() => {
+    instance.current?.nodes().forEach((n) => {
+      n.style("opacity", kind === "All" || n.data("kind") === kind ? 1 : 0.12);
+    });
+  }, [kind]);
+  return (
+    <>
+      <div className="alert">
+        <Network size={17} />
+        Separate synthetic relational fixture · {count} entities. No
+        relationships are inferred from ULB transactions.
+      </div>
+      <Panel
+        title="Entity relationship network"
+        meta={
+          <div className="graph-tools">
+            <select
+              aria-label="Highlight entity type"
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+            >
+              {[
+                "All",
+                "Account",
+                "Card",
+                "Device",
+                "Merchant",
+                "Transaction",
+              ].map((k) => (
+                <option key={k}>{k}</option>
+              ))}
+            </select>
+            <button
+              className="secondary"
+              onClick={() => instance.current?.fit(undefined, 35)}
+            >
+              <Focus size={14} />
+              Fit
+            </button>
+          </div>
+        }
+      >
+        <div className="graph-layout">
+          <div className="graph-canvas" ref={host} />
+          <div className="graph-inspector">
+            <h3>Entity inspector</h3>
+            {selected ? (
+              <>
+                <span className="badge neutral">{selected.kind}</span>
+                <h3>{selected.label}</h3>
+                <code>{selected.id}</code>
+                <p className="muted">
+                  Artificial entity generated by the demo seed. Shared devices
+                  are visible where accounts connect to the same device.
+                </p>
+              </>
+            ) : (
+              <p className="muted">
+                Select a node to inspect it. Drag to reposition, scroll to zoom,
+                and drag the canvas to pan.
+              </p>
+            )}
+            <h3>Entity types</h3>
+            {[
+              ["Account", "#769cdb"],
+              ["Card", "#438d92"],
+              ["Device", "#e5ac64"],
+              ["Merchant", "#a391c4"],
+              ["Transaction", "#438d92"],
+            ].map(([k, c]) => (
+              <div className="graph-legend" key={k}>
+                <i style={{ background: c }} />
+                {k}
+              </div>
+            ))}
+            <p className="muted">
+              Case linking for graph entities is planned. Scored transactions
+              support case links in the explorer.
+            </p>
+          </div>
+        </div>
+      </Panel>
+    </>
+  );
+}
+
+function Copilot({
+  settings,
+  fail,
+}: {
+  settings: Settings | null;
+  fail: (e: unknown) => void;
+}) {
+  const [question, setQuestion] = useState(""),
+    [transactionId, setTransactionId] = useState(""),
+    [caseId, setCaseId] = useState(""),
+    [answer, setAnswer] = useState<{
+      interpretation: string;
+      evidence: unknown;
+      warning: string;
+    } | null>(null),
+    [busy, setBusy] = useState(false);
+  async function ask() {
+    setBusy(true);
+    try {
+      setAnswer(
+        await api(
+          "/copilot",
+          send("POST", {
+            question,
+            ...(transactionId ? { transaction_id: Number(transactionId) } : {}),
+            ...(caseId ? { case_id: Number(caseId) } : {}),
+          }),
+        ),
+      );
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Panel
+      title="Evidence-grounded local Copilot"
+      meta={
+        <span
+          className={
+            "badge " + (settings?.ollama_enabled ? "success" : "neutral")
+          }
+        >
+          {settings?.ollama_enabled ? "Enabled" : "Disabled"}
+        </span>
+      }
+    >
+      <div className="copilot-body">
+        <div className="copilot-symbol">
+          <Sparkles size={30} />
+        </div>
+        <h2>Intelligence begins with evidence.</h2>
+        <p>
+          Supply a transaction or case. Ollama receives the selected structured
+          records and your question. Generated text is an interpretation that
+          requires analyst verification.
+        </p>
+        {!settings?.ollama_enabled && (
+          <div className="setup-box">
+            <b>Optional integration is disabled</b>
+            <p>
+              The workspace works independently of Ollama. To enable it locally:
+            </p>
+            <pre>
+              ollama pull llama3.2
+              <br />
+              ARGUS_OLLAMA_ENABLED=true
+            </pre>
+            <p className="muted">
+              Set the environment variable and restart the backend. Ollama must
+              be running on port 11434.
+            </p>
+          </div>
+        )}
+        <div className="two-grid">
+          <label className="field">
+            Transaction ID
+            <input
+              type="number"
+              min="1"
+              aria-label="Copilot transaction ID"
+              value={transactionId}
+              onChange={(e) => setTransactionId(e.target.value)}
+            />
+          </label>
+          <label className="field">
+            Case ID
+            <input
+              type="number"
+              min="1"
+              aria-label="Copilot case ID"
+              value={caseId}
+              onChange={(e) => setCaseId(e.target.value)}
+            />
+          </label>
+        </div>
+        <label className="field">
+          Question
+          <textarea
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="Summarize the supplied evidence and identify what remains uncertain."
+            maxLength={2000}
+          />
+        </label>
+        <button
+          className="primary"
+          disabled={
+            !settings?.ollama_enabled ||
+            !question.trim() ||
+            (!transactionId && !caseId) ||
+            busy
+          }
+          onClick={ask}
+        >
+          {busy ? (
+            <LoaderCircle className="spin" size={15} />
+          ) : (
+            <Sparkles size={15} />
+          )}
+          Analyze selected evidence
+        </button>
+        {answer && (
+          <div className="copilot-answer">
+            <span className="mini-tag">LLM INTERPRETATION</span>
+            <p>{answer.interpretation}</p>
+            <small>{answer.warning}</small>
+            <details>
+              <summary>Retrieved evidence</summary>
+              <pre>{JSON.stringify(answer.evidence, null, 2)}</pre>
+            </details>
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function SettingsPage({ settings }: { settings: Settings | null }) {
+  return settings ? (
+    <div className="two-grid">
+      <Panel title="Environment">
+        <div className="padded">
+          {[
+            ["Database", settings.database],
+            ["Authentication", settings.authentication],
+            ["Upload limit", `${settings.max_upload_mib} MiB`],
+            ["Ollama", settings.ollama_enabled ? "Enabled" : "Disabled"],
+            ["Local model", settings.ollama_model],
+          ].map(([k, v]) => (
+            <div className="detail-row" key={k}>
+              <span>{k}</span>
+              <b>{v}</b>
+            </div>
+          ))}
+          <p className="muted">
+            Configuration comes from environment variables or a local .env file.
+            Restart the backend after changing configuration.
+          </p>
+        </div>
+      </Panel>
+      <Panel title="Research boundaries">
+        <div className="padded">
+          <h3>Educational prototype</h3>
+          <p>
+            No authentication, bank integrations, or compliance certification.
+            Keep the application on your own computer or a trusted private
+            network.
+          </p>
+          <p>
+            ULB uses anonymized features. Synthetic data contains artificial
+            patterns and is never presented as benchmark evidence.
+          </p>
+          <p>
+            Model scores are uncalibrated. An alert is a request for analyst
+            review, not proof of fraud.
+          </p>
+          <a
+            className="secondary"
+            href="http://127.0.0.1:8000/docs"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open API documentation <ArrowRight size={14} />
+          </a>
+        </div>
+      </Panel>
+    </div>
+  ) : (
+    <Loading />
+  );
+}

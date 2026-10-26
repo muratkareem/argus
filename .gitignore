@@ -20,3 +20,4 @@ ml/artifacts/*
 *.log
 .DS_Store
 .local/
+*.tsbuildinfo
