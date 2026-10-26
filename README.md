@@ -272,7 +272,7 @@ PDF export and graph entity case links are planned. See the [roadmap](docs/ROADM
 
 ## License and acknowledgements
 
-Original ARGUS code: [MIT](LICENSE). Third-party library and dataset licenses
+Original ARGUS code: [MIT](LICENSE). Bundled frontend [third-party notices](frontend/public/THIRD_PARTY_NOTICES.txt) are preserved in the build. Third-party library and dataset licenses
 remain their own. The four requested reference projects were reviewed without
 copying their source, model files, UI assets or data. Review findings and dependency
 attribution are in [OPEN_SOURCE_ATTRIBUTION.md](docs/OPEN_SOURCE_ATTRIBUTION.md).

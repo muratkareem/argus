@@ -70,7 +70,9 @@ Official Kaggle GET download succeeded without credentials. CSV stays ignored at
   Evidence: https://github.com/muratkareem/argus/actions/runs/40333965624
 - Repeated full-data runs reproduced every candidate’s evaluation metrics exactly.
   PR plot sampling now preserves recall transitions and endpoints, with a new
-  regression test. Final corrected-report CI observation follows publication.
+  regression test. Final code revision `e2ad48c` passed all four CI jobs.
+  Evidence: https://github.com/muratkareem/argus/actions/runs/40334710892
+- Frontend bundle retains upstream notices in public/THIRD_PARTY_NOTICES.txt.
 
 ## Git and continuation
 
@@ -82,7 +84,16 @@ passed before commits. Read-only ChatGPT project `sources/` untouched.
 Local ignored `.env` selects the task-owned PostgreSQL cluster at loopback 55432.
 Its files are `.local/postgres`; ULB and synthetic model versions are in
 `ml/artifacts`. Stratified ULB XGBoost is active; the chronological run is retained
-for comparison. `bootstrap.py` refuses to overwrite a non-synthetic active model;
+for comparison. Preview/API/database processes are stopped after verification;
+all local data and artifacts are preserved. To resume this exact local workspace:
+
+```sh
+/opt/homebrew/opt/postgresql@17/bin/pg_ctl -D .local/postgres -l .local/postgres.log -o "-p 55432 -h 127.0.0.1 -k /private/tmp" start
+PYTHONPATH=backend uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+# In another terminal: cd frontend && npm run dev
+```
+
+`bootstrap.py` refuses to overwrite a non-synthetic active model;
 use separate database/artifact paths to set up a new synthetic test workspace.
 Default fresh-clone/Compose setup is synthetic, needs no private data, and trains
 its own model. For ordinary setup use README commands.

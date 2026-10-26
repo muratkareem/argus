@@ -35,3 +35,8 @@ ARGUS's MIT license covers original repository code, not third-party packages,
 ULB data, or models trained from third-party data. Distributing bundled packages
 must preserve their respective license and notice files. No proprietary
 Palantir assets or layouts are used.
+
+The built frontend ships `THIRD_PARTY_NOTICES.txt` from `frontend/public/`,
+including upstream production dependency notices and the nested D3/internmap
+notices in victory-vendor. Vite copies this file into the deployed static assets.
+Refresh these notices when changing frontend dependencies.
