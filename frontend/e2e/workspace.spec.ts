@@ -167,7 +167,7 @@ test("research, graph, local copilot, and settings pages are usable", async ({
     .getByRole("link", { name: "Intelligence Graph", exact: true })
     .click();
   await expect(page.locator(".graph-canvas canvas").first()).toBeVisible();
-  await page.getByLabel("Highlight entity type").selectOption("Device");
+  await page.getByLabel("Graph entity type").selectOption("Device");
   await page.getByRole("button", { name: "Fit", exact: true }).click();
   await page.getByRole("link", { name: /AI Copilot/ }).click();
   await expect(
@@ -329,4 +329,49 @@ test("case workbench supports linked evidence, persisted resizing and audit time
     fullPage: true,
     animations: "disabled",
   });
+});
+
+test("graph neighborhoods and synthetic entity investigations stay linked", async ({
+  page,
+}) => {
+  await page.goto("/#graph/device-1");
+  await expect(
+    page.getByText("4 / 31 entities", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Expand neighborhood", exact: true })
+    .click();
+  await expect(
+    page.getByText("7 / 31 entities", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Graph relationship type").selectOption("uses");
+  await expect(
+    page.getByText("4 / 31 entities", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Graph relationship type").selectOption("");
+  await page.getByLabel("Shared-device cue").check();
+  await expect(
+    page.getByText("4 / 31 entities", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Inspect graph entity").selectOption("device-1");
+  await page.screenshot({
+    path: "../docs/screenshots/graph-upgrade.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  const created = page.waitForResponse(
+    (r) => r.url().endsWith("/api/v1/cases") && r.request().method() === "POST",
+  );
+  await page
+    .getByRole("button", { name: "Create entity investigation" })
+    .click();
+  const record = await (await created).json();
+  expect(record.entity_ids).toEqual(["device-1"]);
+  await expect(
+    page.getByRole("heading", { name: "Linked evidence", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Explore neighborhood" }).click();
+  await expect(
+    page.getByRole("link", { name: `Case #${record.id}`, exact: true }),
+  ).toBeVisible();
 });

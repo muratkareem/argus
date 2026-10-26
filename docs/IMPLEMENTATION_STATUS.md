@@ -151,3 +151,10 @@ loads now reject stale responses and editing/saving waits for completion. Both
 investigation browser workflows passed after the fix, including restart persistence,
 notes/decisions, timeline changes, synthetic entity links and resized panel state.
 Actual workbench screenshot reviewed in docs/screenshots/investigation-upgrade.png.
+
+Graph upgrade: root/depth neighborhood expansion, entity and relationship filters,
+shared-device structural cue, node/keyboard selector inspection, neighbor navigation,
+create/link investigations and bidirectional case/entity deep links are working.
+All data remains the separate synthetic SQL graph; no ULB identities or relationships
+are inferred. All eight Playwright flows passed, including graph-to-case-to-graph
+link persistence. Typecheck/lint/build passed and graph screenshot reviewed.

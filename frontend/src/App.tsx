@@ -1,9 +1,10 @@
+import { GraphIntelligence } from "./pages/GraphIntelligence";
 import { InvestigationWorkspace } from "./pages/InvestigationWorkspace";
 import { TransactionIntelligence } from "./pages/TransactionIntelligence";
 import { Risk, Empty, Panel, Metric, TxTable, Loading } from "./ui";
 import { CommandMenu } from "./components/CommandMenu";
 export { Risk, Empty } from "./ui";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   ArrowDownToLine,
@@ -39,7 +40,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import cytoscape from "cytoscape";
 import { api, amount, download, percent, send } from "./api";
 import type {
   Case,
@@ -317,7 +317,9 @@ export default function App() {
               notify={setNotice}
             />
           )}
-          {page === "graph" && <Graph fail={fail} />}
+          {page === "graph" && (
+            <GraphIntelligence fail={fail} notify={setNotice} />
+          )}
           {page === "copilot" && <Copilot settings={settings} fail={fail} />}
           {page === "settings" && <SettingsPage settings={settings} />}
           {!pages.some((p) => p[0] === page) && (
@@ -1381,182 +1383,6 @@ function Laboratory({
           </div>
         </Panel>
       </div>
-    </>
-  );
-}
-
-function Graph({ fail }: { fail: (e: unknown) => void }) {
-  const host = useRef<HTMLDivElement>(null),
-    instance = useRef<cytoscape.Core | null>(null),
-    [selected, setSelected] = useState<Record<string, string> | null>(null),
-    [kind, setKind] = useState("All"),
-    [count, setCount] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    api<{
-      nodes: cytoscape.ElementDefinition[];
-      edges: cytoscape.ElementDefinition[];
-    }>("/graph")
-      .then((data) => {
-        if (cancelled || !host.current) return;
-        setCount(data.nodes.length);
-        const graph = cytoscape({
-          container: host.current,
-          elements: [...data.nodes, ...data.edges],
-          layout: { name: "cose", animate: false, nodeRepulsion: () => 9000 },
-          style: [
-            {
-              selector: "node",
-              style: {
-                "background-color": "#438d92",
-                label: "data(label)",
-                "font-size": 10,
-                color: "#a5b4c5",
-                "text-valign": "bottom",
-                "text-margin-y": 8,
-                width: 20,
-                height: 20,
-              },
-            },
-            {
-              selector: 'node[kind="Account"]',
-              style: {
-                "background-color": "#769cdb",
-                shape: "round-rectangle",
-                width: 34,
-                height: 34,
-              },
-            },
-            {
-              selector: 'node[kind="Device"]',
-              style: {
-                "background-color": "#e5ac64",
-                shape: "diamond",
-                width: 30,
-                height: 30,
-              },
-            },
-            {
-              selector: 'node[kind="Merchant"]',
-              style: {
-                "background-color": "#a391c4",
-                shape: "hexagon",
-                width: 28,
-                height: 28,
-              },
-            },
-            {
-              selector: "edge",
-              style: {
-                width: 1,
-                "line-color": "#334454",
-                "target-arrow-color": "#334454",
-                "target-arrow-shape": "triangle",
-                "curve-style": "bezier",
-              },
-            },
-            {
-              selector: ":selected",
-              style: {
-                "background-color": "#e9f2f6",
-                "line-color": "#77bfc2",
-                "border-width": 3,
-                "border-color": "#62c2c0",
-              },
-            },
-          ],
-        });
-        instance.current = graph;
-        graph.on("tap", "node", (e) => setSelected(e.target.data()));
-      })
-      .catch(fail);
-    return () => {
-      cancelled = true;
-      instance.current?.destroy();
-    };
-  }, []);
-  useEffect(() => {
-    instance.current?.nodes().forEach((n) => {
-      n.style("opacity", kind === "All" || n.data("kind") === kind ? 1 : 0.12);
-    });
-  }, [kind]);
-  return (
-    <>
-      <div className="alert">
-        <Network size={17} />
-        Separate synthetic relational fixture · {count} entities. No
-        relationships are inferred from ULB transactions.
-      </div>
-      <Panel
-        title="Entity relationship network"
-        meta={
-          <div className="graph-tools">
-            <select
-              aria-label="Highlight entity type"
-              value={kind}
-              onChange={(e) => setKind(e.target.value)}
-            >
-              {[
-                "All",
-                "Account",
-                "Card",
-                "Device",
-                "Merchant",
-                "Transaction",
-              ].map((k) => (
-                <option key={k}>{k}</option>
-              ))}
-            </select>
-            <button
-              className="secondary"
-              onClick={() => instance.current?.fit(undefined, 35)}
-            >
-              <Focus size={14} />
-              Fit
-            </button>
-          </div>
-        }
-      >
-        <div className="graph-layout">
-          <div className="graph-canvas" ref={host} />
-          <div className="graph-inspector">
-            <h3>Entity inspector</h3>
-            {selected ? (
-              <>
-                <span className="badge neutral">{selected.kind}</span>
-                <h3>{selected.label}</h3>
-                <code>{selected.id}</code>
-                <p className="muted">
-                  Artificial entity generated by the demo seed. Shared devices
-                  are visible where accounts connect to the same device.
-                </p>
-              </>
-            ) : (
-              <p className="muted">
-                Select a node to inspect it. Drag to reposition, scroll to zoom,
-                and drag the canvas to pan.
-              </p>
-            )}
-            <h3>Entity types</h3>
-            {[
-              ["Account", "#769cdb"],
-              ["Card", "#438d92"],
-              ["Device", "#e5ac64"],
-              ["Merchant", "#a391c4"],
-              ["Transaction", "#438d92"],
-            ].map(([k, c]) => (
-              <div className="graph-legend" key={k}>
-                <i style={{ background: c }} />
-                {k}
-              </div>
-            ))}
-            <p className="muted">
-              Case linking for graph entities is planned. Scored transactions
-              support case links in the explorer.
-            </p>
-          </div>
-        </div>
-      </Panel>
     </>
   );
 }

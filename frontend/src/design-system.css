@@ -1140,3 +1140,195 @@ footer {
     font-size: 13px;
   }
 }
+.graph-context {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #14222c;
+  border: 1px solid #314757;
+  padding: 10px 13px;
+  margin-bottom: 14px;
+}
+.graph-context p {
+  font-size: 9px;
+  color: #7f9eaf;
+  line-height: 1.7;
+}
+.graph-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 285px;
+  gap: 15px;
+  align-items: stretch;
+}
+.graph-workspace > .panel {
+  margin: 0;
+}
+.graph-workspace .graph-query-bar {
+  display: flex;
+  align-items: end;
+  gap: 13px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #2c4355;
+  flex-wrap: wrap;
+}
+.graph-query-bar .field {
+  margin: 0;
+  font-size: 8px;
+  min-width: 125px;
+}
+.graph-query-bar select {
+  font-size: 10px;
+  padding: 7px;
+}
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 9px;
+  align-self: center;
+  margin-top: 13px;
+  color: #acbfcf;
+}
+.checkbox-field input {
+  accent-color: #6ca6b7;
+}
+.graph-query-bar > .secondary {
+  margin-left: auto;
+}
+.graph-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #263f52;
+  font-size: 9px;
+  color: #7d9eb4;
+}
+.graph-breadcrumb button {
+  font-size: 9px;
+  background: none;
+  color: #a3c5d8;
+  padding: 0;
+}
+.graph-breadcrumb > .text-button {
+  margin-left: auto;
+  font-size: 8px;
+}
+.graph-breadcrumb button:disabled {
+  color: #486575;
+}
+.graph-workspace .graph-canvas {
+  height: 590px;
+  background-image: radial-gradient(#263d4f 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.graph-workspace .graph-inspector {
+  padding: 15px;
+  border-left: 0;
+}
+.graph-inspector .field {
+  font-size: 9px;
+}
+.graph-inspector > .secondary {
+  font-size: 9px;
+  margin: 18px 0 5px;
+}
+.neighbor-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #2c4559;
+  margin: 10px 0 20px;
+}
+.neighbor-list > button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 9px;
+  background: #132331;
+  color: #a8c6d9;
+  font-size: 10px;
+  text-align: left;
+  border-bottom: 1px solid #2a4153;
+}
+.neighbor-list > button:hover {
+  background: #243b4c;
+}
+.neighbor-list > button:last-child {
+  border: 0;
+}
+.neighbor-list small {
+  margin-left: auto;
+  font-size: 7px;
+  color: #6c8fa7;
+}
+.graph-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 13px;
+  border-top: 1px solid #293f51;
+  font-size: 8px;
+  color: #67869c;
+}
+.graph-inspector .case-links {
+  margin: 12px 0 17px;
+}
+.graph-inspector .case-links a {
+  font-size: 8px;
+}
+.graph-inspector .inline-form {
+  margin-top: 10px;
+}
+.graph-inspector .inline-form select {
+  width: 100%;
+  font-size: 9px;
+}
+.graph-inspector > .muted {
+  font-size: 9px;
+}
+.graph-inspector h3 {
+  margin-top: 10px;
+  font-size: 15px;
+}
+.graph-workspace .graph-inspector > code {
+  font-size: 9px;
+}
+.graph-inspector .detail-row {
+  font-size: 9px;
+}
+@media (max-width: 1100px) {
+  .graph-workspace {
+    grid-template-columns: minmax(0, 1fr) 245px;
+  }
+  .graph-query-bar .field {
+    min-width: 105px;
+  }
+  .graph-workspace .graph-canvas {
+    height: 540px;
+  }
+}
+@media (max-width: 800px) {
+  .graph-workspace {
+    grid-template-columns: 1fr;
+  }
+  .graph-context {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .graph-workspace .graph-canvas {
+    height: 430px;
+  }
+  .graph-query-bar {
+    gap: 8px !important;
+  }
+  .graph-breadcrumb {
+    font-size: 8px;
+    flex-wrap: wrap;
+  }
+  .graph-status > span:first-child {
+    max-width: 160px;
+    line-height: 1.7;
+  }
+}
