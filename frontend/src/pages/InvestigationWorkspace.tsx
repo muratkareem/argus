@@ -502,6 +502,8 @@ function TransactionEvidence({
   const [tx, setTx] = useState<Tx | null>(null),
     [explain, setExplain] = useState<{
       features: { feature: string; contribution: number }[];
+      model_version: string;
+      matches_stored_prediction: boolean;
     } | null>(null),
     [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -559,6 +561,12 @@ function TransactionEvidence({
       </button>
       {explain && (
         <div className="context-shap">
+          {!explain.matches_stored_prediction && (
+            <p className="error-text">
+              Active-model explanation differs from the stored prediction
+              version.
+            </p>
+          )}
           {explain.features.slice(0, 5).map((f) => (
             <div className="detail-row" key={f.feature}>
               <code>{f.feature}</code>

@@ -1,3 +1,4 @@
+import { CopilotWorkspace } from "./pages/CopilotWorkspace";
 import { GraphIntelligence } from "./pages/GraphIntelligence";
 import { InvestigationWorkspace } from "./pages/InvestigationWorkspace";
 import { TransactionIntelligence } from "./pages/TransactionIntelligence";
@@ -61,7 +62,7 @@ const pages = [
   ["copilot", "AI Copilot", Sparkles],
   ["settings", "Settings", SettingsIcon],
 ] as const;
-const route = () => location.hash.slice(1).split("/")[0] || "overview";
+const route = () => location.hash.slice(1).split(/[/?]/)[0] || "overview";
 const nav = (page: string) => {
   location.hash = page;
 };
@@ -105,6 +106,8 @@ export default function App() {
     const shortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        setSelectedTx(null);
+        setUploadOpen(false);
         setCommandOpen((open) => !open);
       }
       if (event.key === "Escape") {
@@ -116,6 +119,39 @@ export default function App() {
     addEventListener("keydown", shortcut);
     return () => removeEventListener("keydown", shortcut);
   }, []);
+  useEffect(() => {
+    if (!commandOpen && !uploadOpen && selectedTx == null) return;
+    const dialog = [
+      ...document.querySelectorAll<HTMLElement>('[role="dialog"]'),
+    ].at(-1);
+    if (!dialog) return;
+    const previous = document.activeElement as HTMLElement;
+    const controls = () =>
+      [
+        ...dialog.querySelectorAll<HTMLElement>(
+          'button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]',
+        ),
+      ].filter((el) => el.getClientRects().length > 0);
+    if (!dialog.contains(document.activeElement)) controls()[0]?.focus();
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const nodes = controls(),
+        first = nodes[0],
+        last = nodes.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [commandOpen, uploadOpen, selectedTx]);
   const refresh = () => setRevision((n) => n + 1);
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : String(e));
@@ -218,9 +254,7 @@ export default function App() {
             <div>
               <div className="eyebrow">ARGUS / ANALYST WORKSPACE</div>
               <h1>
-                {current[1] === "Overview"
-                  ? "Intelligence overview"
-                  : current[1]}
+                {current[1] === "Overview" ? "Command Center" : current[1]}
               </h1>
               <p>
                 {
@@ -320,7 +354,14 @@ export default function App() {
           {page === "graph" && (
             <GraphIntelligence fail={fail} notify={setNotice} />
           )}
-          {page === "copilot" && <Copilot settings={settings} fail={fail} />}
+          {page === "copilot" && (
+            <CopilotWorkspace
+              settings={settings}
+              fail={fail}
+              notify={setNotice}
+              onSelect={setSelectedTx}
+            />
+          )}
           {page === "settings" && <SettingsPage settings={settings} />}
           {!pages.some((p) => p[0] === page) && (
             <Empty>
@@ -380,9 +421,12 @@ function OverviewPage({
   fail: (e: unknown) => void;
 }) {
   const [data, setData] = useState<Overview | null>(null),
-    [experiment, setExperiment] = useState<Experiment | null>(null);
+    [experiment, setExperiment] = useState<Experiment | null>(null),
+    [recentCases, setRecentCases] = useState<Case[]>([]),
+    [riskBand, setRiskBand] = useState(9);
   useEffect(() => {
     api<Overview>("/overview").then(setData).catch(fail);
+    api<Case[]>("/cases").then(setRecentCases).catch(fail);
     api<Models>("/models")
       .then((d) =>
         setExperiment(
@@ -473,6 +517,14 @@ function OverviewPage({
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={data.trend}
+                  onClick={(state) => {
+                    if (state?.activeLabel != null) {
+                      const hour = Number(state.activeLabel);
+                      nav(
+                        `transactions?min_time=${hour * 3600}&max_time=${(hour + 1) * 3600 - 0.001}`,
+                      );
+                    }
+                  }}
                   margin={{ top: 14, right: 20, bottom: 0, left: -24 }}
                 >
                   <defs>
@@ -558,6 +610,12 @@ function OverviewPage({
                 <Bar
                   isAnimationActive={false}
                   dataKey="count"
+                  onClick={(_data, index) =>
+                    nav(
+                      `transactions?min_risk=${index / 10}&max_risk=${(index + 1) / 10}`,
+                    )
+                  }
+                  style={{ cursor: "pointer" }}
                   fill="#42968f"
                   radius={[3, 3, 0, 0]}
                   maxBarSize={24}
@@ -566,8 +624,30 @@ function OverviewPage({
             </ResponsiveContainer>
           </div>
           <div className="chart-foot">
-            <span>Score range</span>
-            <span className="teal">0 — 100%</span>
+            <label className="risk-band-control">
+              Inspect range
+              <select
+                aria-label="Risk band to explore"
+                value={riskBand}
+                onChange={(e) => setRiskBand(Number(e.target.value))}
+              >
+                {data.risk_distribution.map((b, index) => (
+                  <option key={b.bucket} value={index}>
+                    {b.bucket}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="text-button"
+              onClick={() =>
+                nav(
+                  `transactions?min_risk=${riskBand / 10}&max_risk=${(riskBand + 1) / 10}`,
+                )
+              }
+            >
+              Explore range <ArrowRight size={11} />
+            </button>
           </div>
         </Panel>
       </div>
@@ -638,6 +718,44 @@ function OverviewPage({
           )}
         </Panel>
       </div>
+      <Panel
+        title="Recent investigations"
+        meta={
+          <button className="text-button" onClick={() => nav("investigations")}>
+            Open workbench <ArrowRight size={12} />
+          </button>
+        }
+      >
+        {recentCases.length ? (
+          <div className="case-watchlist">
+            {recentCases.slice(0, 4).map((c) => (
+              <a key={c.id} href={`#investigations/${c.id}`}>
+                <span className="mono">
+                  CASE-{String(c.id).padStart(4, "0")}
+                </span>
+                <b>{c.title}</b>
+                <span>
+                  <i
+                    className={
+                      "badge " +
+                      (["Critical", "High"].includes(c.priority)
+                        ? "danger"
+                        : "neutral")
+                    }
+                  >
+                    {c.priority}
+                  </i>
+                  <small>{c.status}</small>
+                </span>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <Empty>
+            No investigations yet. Start from a flagged transaction.
+          </Empty>
+        )}
+      </Panel>
       <div className="insight-bar">
         <ShieldCheck size={19} />
         <span>
@@ -1384,145 +1502,6 @@ function Laboratory({
         </Panel>
       </div>
     </>
-  );
-}
-
-function Copilot({
-  settings,
-  fail,
-}: {
-  settings: Settings | null;
-  fail: (e: unknown) => void;
-}) {
-  const [question, setQuestion] = useState(""),
-    [transactionId, setTransactionId] = useState(""),
-    [caseId, setCaseId] = useState(""),
-    [answer, setAnswer] = useState<{
-      interpretation: string;
-      evidence: unknown;
-      warning: string;
-    } | null>(null),
-    [busy, setBusy] = useState(false);
-  async function ask() {
-    setBusy(true);
-    try {
-      setAnswer(
-        await api(
-          "/copilot",
-          send("POST", {
-            question,
-            ...(transactionId ? { transaction_id: Number(transactionId) } : {}),
-            ...(caseId ? { case_id: Number(caseId) } : {}),
-          }),
-        ),
-      );
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <Panel
-      title="Evidence-grounded local Copilot"
-      meta={
-        <span
-          className={
-            "badge " + (settings?.ollama_enabled ? "success" : "neutral")
-          }
-        >
-          {settings?.ollama_enabled ? "Enabled" : "Disabled"}
-        </span>
-      }
-    >
-      <div className="copilot-body">
-        <div className="copilot-symbol">
-          <Sparkles size={30} />
-        </div>
-        <h2>Intelligence begins with evidence.</h2>
-        <p>
-          Supply a transaction or case. Ollama receives the selected structured
-          records and your question. Generated text is an interpretation that
-          requires analyst verification.
-        </p>
-        {!settings?.ollama_enabled && (
-          <div className="setup-box">
-            <b>Optional integration is disabled</b>
-            <p>
-              The workspace works independently of Ollama. To enable it locally:
-            </p>
-            <pre>
-              ollama pull llama3.2
-              <br />
-              ARGUS_OLLAMA_ENABLED=true
-            </pre>
-            <p className="muted">
-              Set the environment variable and restart the backend. Ollama must
-              be running on port 11434.
-            </p>
-          </div>
-        )}
-        <div className="two-grid">
-          <label className="field">
-            Transaction ID
-            <input
-              type="number"
-              min="1"
-              aria-label="Copilot transaction ID"
-              value={transactionId}
-              onChange={(e) => setTransactionId(e.target.value)}
-            />
-          </label>
-          <label className="field">
-            Case ID
-            <input
-              type="number"
-              min="1"
-              aria-label="Copilot case ID"
-              value={caseId}
-              onChange={(e) => setCaseId(e.target.value)}
-            />
-          </label>
-        </div>
-        <label className="field">
-          Question
-          <textarea
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Summarize the supplied evidence and identify what remains uncertain."
-            maxLength={2000}
-          />
-        </label>
-        <button
-          className="primary"
-          disabled={
-            !settings?.ollama_enabled ||
-            !question.trim() ||
-            (!transactionId && !caseId) ||
-            busy
-          }
-          onClick={ask}
-        >
-          {busy ? (
-            <LoaderCircle className="spin" size={15} />
-          ) : (
-            <Sparkles size={15} />
-          )}
-          Analyze selected evidence
-        </button>
-        {answer && (
-          <div className="copilot-answer">
-            <span className="mini-tag">LLM INTERPRETATION</span>
-            <p>{answer.interpretation}</p>
-            <small>{answer.warning}</small>
-            <details>
-              <summary>Retrieved evidence</summary>
-              <pre>{JSON.stringify(answer.evidence, null, 2)}</pre>
-            </details>
-          </div>
-        )}
-      </div>
-    </Panel>
   );
 }
 

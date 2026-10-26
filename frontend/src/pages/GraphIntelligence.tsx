@@ -91,6 +91,9 @@ export function GraphIntelligence({
     if (!host.current || !graph) return;
     const cy = cytoscape({
       container: host.current,
+      maxZoom: 1.6,
+      minZoom: 0.25,
+      wheelSensitivity: 0.2,
       elements: [...graph.nodes, ...graph.edges],
       layout: {
         name: "cose",

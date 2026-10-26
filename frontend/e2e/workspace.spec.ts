@@ -13,7 +13,7 @@ test("analyst can investigate a scored transaction and persist evidence", async 
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/#overview");
   await expect(
-    page.getByRole("heading", { name: "Intelligence overview" }),
+    page.getByRole("heading", { name: "Command Center" }),
   ).toBeVisible();
   await expect(page.getByText("LIVE WORKSPACE SNAPSHOT")).toBeVisible();
   await expect(
@@ -195,7 +195,7 @@ test("overview is responsive and captures the actual workspace", async ({
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(
-    page.getByRole("heading", { name: "Intelligence overview" }),
+    page.getByRole("heading", { name: "Command Center" }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -374,4 +374,46 @@ test("graph neighborhoods and synthetic entity investigations stay linked", asyn
   await expect(
     page.getByRole("link", { name: `Case #${record.id}`, exact: true }),
   ).toBeVisible();
+});
+
+test("Copilot evidence remains inspectable while local generation is disabled", async ({
+  page,
+  request,
+}) => {
+  const cases = await (
+    await request.get("http://127.0.0.1:8000/api/v1/cases")
+  ).json();
+  const record = cases.find(
+    (c: { transaction_ids: number[] }) => c.transaction_ids.length,
+  );
+  await page.goto(`/#copilot/${record.id}`);
+  await page.getByRole("button", { name: "Load selected evidence" }).click();
+  await expect(page.getByText(/RETRIEVED SOURCES/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Analyze selected evidence" }),
+  ).toBeDisabled();
+  await page.getByText("Inspect structured context", { exact: true }).click();
+  await expect(page.locator(".copilot-selection pre")).toContainText(
+    "analyst_case",
+  );
+});
+
+test("Command Center risk exploration links to validated transaction filters", async ({
+  page,
+}) => {
+  await page.goto("/#overview");
+  await page.getByLabel("Risk band to explore").selectOption("8");
+  await page
+    .getByRole("button", { name: "Explore range", exact: true })
+    .click();
+  await expect(page.getByLabel("Minimum risk score")).toHaveValue("0.8");
+  await expect(page.getByLabel("Maximum risk score")).toHaveValue("0.9");
+  await page.keyboard.press("ControlOrMeta+k");
+  const dialog = page.getByRole("dialog", { name: "Workspace search" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("link", { name: "Settings", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByLabel("Search workspace")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
 });

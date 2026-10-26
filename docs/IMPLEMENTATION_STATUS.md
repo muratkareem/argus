@@ -168,3 +168,14 @@ structured protocol. All 22 backend tests passed on SQLite/PostgreSQL. A real
 qwen2.5:7b integration call cited only supplied source IDs and preserved database
 counts; metadata is in docs/research/ollama-integration.json. Valid citations do
 not guarantee factual correctness; generated text still needs analyst review.
+
+Copilot UI/Command Center milestone: real model browser verification passed with
+qwen2.5:7b: bounded structured context, validated source IDs, generation without
+note mutation, and explicit saving as a labeled LLM-generated case note. Actual
+screen reviewed in copilot-upgrade.png and metadata in ollama-ui-verification.json.
+Source selection is locked while a generation is pending. Model scores remain
+explicitly uncalibrated; valid citations do not guarantee every LLM statement.
+Command Center now includes recent persisted investigations, clickable chart/risk
+ranges linked to the transaction query builder, and keyboard-accessible range
+selection. Dialog focus is contained and Cmd/Ctrl+K replaces other overlays.
+All ten browser workflows, three component tests, lint/typecheck and build passed.

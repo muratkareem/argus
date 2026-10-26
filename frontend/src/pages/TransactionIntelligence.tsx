@@ -31,6 +31,13 @@ type View = {
   name: string;
   filters: Record<string, string | number | boolean>;
 };
+function filtersFromLocation(): Filters {
+  const next = { ...defaults };
+  const query = new URLSearchParams(location.hash.split("?")[1] ?? "");
+  for (const [key, value] of query)
+    if (key in next) next[key as keyof Filters] = value;
+  return next;
+}
 export function TransactionIntelligence({
   revision,
   onSelect,
@@ -40,7 +47,7 @@ export function TransactionIntelligence({
   onSelect: (id: number) => void;
   fail: (e: unknown) => void;
 }) {
-  const [filters, setFilters] = useState<Filters>(defaults),
+  const [filters, setFilters] = useState<Filters>(filtersFromLocation),
     [page, setPage] = useState(1),
     [data, setData] = useState<{ items: Tx[]; total: number } | null>(null),
     [views, setViews] = useState<View[]>([]),
@@ -57,6 +64,15 @@ export function TransactionIntelligence({
     setViewId("");
   };
   const loadViews = () => api<View[]>("/views").then(setViews).catch(fail);
+  useEffect(() => {
+    const change = () => {
+      setFilters(filtersFromLocation());
+      setPage(1);
+      setViewId("");
+    };
+    addEventListener("hashchange", change);
+    return () => removeEventListener("hashchange", change);
+  }, []);
   useEffect(() => {
     void loadViews();
   }, []);

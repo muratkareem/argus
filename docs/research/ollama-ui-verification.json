@@ -1,0 +1,17 @@
+{
+  "verified_at": "2026-10-26T15:23:35.177Z",
+  "model": "qwen2.5:7b",
+  "data_provenance": "synthetic fixtures only",
+  "case_id": 16,
+  "transaction_id": 528,
+  "citation_status": "validated_ids",
+  "source_ids": [
+    "transaction:528",
+    "case:16",
+    "entity:device-1"
+  ],
+  "generation_did_not_mutate_notes": true,
+  "explicit_note_save_labeled": true,
+  "page_errors": [],
+  "limitation": "Valid source IDs do not guarantee every LLM claim is correct."
+}
