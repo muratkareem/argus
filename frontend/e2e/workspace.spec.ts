@@ -208,3 +208,23 @@ test("overview is responsive and captures the actual workspace", async ({
     animations: "disabled",
   });
 });
+
+test("workspace command navigation and display density persist", async ({
+  page,
+}) => {
+  await page.goto("/#overview");
+  await page.keyboard.press("ControlOrMeta+k");
+  const search = page.getByRole("dialog", { name: "Workspace search" });
+  await expect(search.getByLabel("Search workspace")).toBeFocused();
+  await search.getByLabel("Search workspace").fill("Laboratory");
+  await search
+    .getByRole("link", { name: "ML Laboratory", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "ML Laboratory", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Display density").selectOption("comfortable");
+  await page.reload();
+  await expect(page.getByLabel("Display density")).toHaveValue("comfortable");
+  await page.getByLabel("Display density").selectOption("compact");
+});

@@ -108,3 +108,21 @@ its own model. For ordinary setup use README commands.
 - Experiments are single-seed estimates without confidence intervals or external
   validation. Dashboard metrics over imported training data are not held-out
   research metrics; Laboratory reports are the benchmark evidence.
+
+## Enterprise upgrade — in progress
+
+Preserved the original ML artifacts, full ULB CSV, PostgreSQL database and all
+published benchmarks. Existing remote history is synchronized and the prior
+final CI run 40335394233 passed all four jobs.
+
+Phase 1 introduces a flat compact analyst design system, reusable UI primitives,
+keyboard navigation (Cmd/Ctrl+K, Escape), persistent density controls and a
+navigation command menu. Public Palantir references are recorded in UX_RESEARCH.md;
+no proprietary assets are copied. Frontend lint/typecheck, three component tests,
+production build and browser regression checks were executed for this milestone.
+Development browser tests use a separate synthetic database and artifact directory
+under `.local/upgrade-e2e*`, preserving the full research workspace.
+
+Next: bounded global search, saved server-side filters, richer transaction
+queries; additive case events/entity links; resizable workbench; graph traversal;
+installed Ollama verification, then final integration/screenshots/CI.
