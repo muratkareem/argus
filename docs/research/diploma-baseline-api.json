@@ -1,0 +1,61 @@
+{
+  "measured_at": "2026-11-14T08:00:34.688124+00:00",
+  "methodology": "FastAPI TestClient in-process HTTP, concurrency 1, three warmups per operation; p95 interpolated; includes JSON and validation; excludes TCP, browser and TLS; synthetic seed 995.",
+  "environment": {
+    "platform": "macOS-27.2-arm64-arm-64bit",
+    "python": "3.12.16",
+    "logical_cpu_count": 10
+  },
+  "dataset": {
+    "provenance": "synthetic",
+    "rows": 10000,
+    "seed": 995
+  },
+  "model_version": "20261114T080032855469Z-2ca1e532",
+  "results": {
+    "health": {
+      "samples": 50,
+      "p50_ms": 0.7510204886784777,
+      "p95_ms": 0.8801767558907159,
+      "min_ms": 0.6892090023029596,
+      "max_ms": 1.5602909843437374
+    },
+    "prediction": {
+      "samples": 50,
+      "p50_ms": 2.041270985500887,
+      "p95_ms": 2.258614399761427,
+      "min_ms": 1.93070899695158,
+      "max_ms": 2.3566249874420464
+    },
+    "transactions": {
+      "samples": 50,
+      "p50_ms": 5.137166997883469,
+      "p95_ms": 6.8351103574968874,
+      "min_ms": 4.5194170088507235,
+      "max_ms": 7.7397089917212725
+    },
+    "overview": {
+      "samples": 50,
+      "p50_ms": 11.09025048208423,
+      "p95_ms": 13.823504350148141,
+      "min_ms": 9.769458993105218,
+      "max_ms": 24.810167000396177
+    },
+    "shap_on_demand": {
+      "samples": 15,
+      "p50_ms": 2.4893330119084567,
+      "p95_ms": 4.013816901715472,
+      "min_ms": 2.0076670043636113,
+      "max_ms": 4.148625012021512
+    },
+    "vectorized_model_1000": {
+      "samples": 20,
+      "p50_ms": 0.5833954928675666,
+      "p95_ms": 0.652629800606519,
+      "min_ms": 0.5654999986290932,
+      "max_ms": 0.6867499905638397
+    }
+  },
+  "process_peak_rss_mib": 309.390625,
+  "memory_note": "Process high-water RSS includes imports, setup, training when applicable, database and explanation; not idle inference RSS."
+}
