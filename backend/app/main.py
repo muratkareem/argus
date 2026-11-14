@@ -14,9 +14,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import Integer, case, cast, func, or_, select, text
+from sqlalchemy import Integer, case, cast, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings
 from app.data import ingest
@@ -345,7 +346,9 @@ def create_app(settings=None):
                 413, f"CSV exceeds {settings.max_upload_bytes // 1024**2} MiB limit"
             )
         try:
-            return ingest(session, content, file.filename, provenance, predictor)
+            return await run_in_threadpool(
+                ingest, session, content, file.filename, provenance, predictor
+            )
         except ValueError as exc:
             session.rollback()
             raise HTTPException(422, str(exc))
@@ -356,14 +359,16 @@ def create_app(settings=None):
     @app.post("/api/v1/datasets/{dataset_id}/score")
     def batch_score(dataset_id: int, session: Session = Depends(db)):
         dataset = require(session, Dataset, dataset_id)
-        rows = list(
-            session.scalars(select(Transaction).where(Transaction.dataset_id == dataset_id))
-        )
-        if not rows:
-            return {"scored": 0}
-        count = 0
-        for start in range(0, len(rows), 2000):
-            chunk = rows[start : start + 2000]
+        count, last_id, version = 0, 0, None
+        while True:
+            chunk = session.execute(
+                select(Transaction.id, Transaction.features)
+                .where(Transaction.dataset_id == dataset_id, Transaction.id > last_id)
+                .order_by(Transaction.id)
+                .limit(2000)
+            ).all()
+            if not chunk:
+                break
             try:
                 bundle, scores = predictor.predict(
                     pd.DataFrame([r.features for r in chunk]), dataset.provenance
@@ -372,12 +377,27 @@ def create_app(settings=None):
                 raise HTTPException(503, "Train a matching model first")
             except ValueError as exc:
                 raise HTTPException(409, str(exc))
-            for tx, score in zip(chunk, scores):
-                tx.risk_score, tx.flagged = float(score), int(score >= bundle["threshold"])
-                tx.model_version, tx.threshold = bundle["version"], bundle["threshold"]
+            if version is not None and version != bundle["version"]:
+                session.rollback()
+                raise HTTPException(409, "Active model changed during scoring; retry the batch")
+            version = bundle["version"]
+            session.execute(
+                update(Transaction),
+                [
+                    {
+                        "id": tx.id,
+                        "risk_score": float(score),
+                        "flagged": int(score >= bundle["threshold"]),
+                        "model_version": version,
+                        "threshold": bundle["threshold"],
+                    }
+                    for tx, score in zip(chunk, scores)
+                ],
+            )
+            last_id = chunk[-1].id
             count += len(chunk)
         session.commit()
-        return {"scored": count, "model_version": bundle["version"]}
+        return {"scored": count, "model_version": version}
 
     def transaction_query(q, flagged, provenance, min_risk):
         query = select(Transaction, Dataset.provenance).join(Dataset)

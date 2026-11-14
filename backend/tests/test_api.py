@@ -344,3 +344,25 @@ def test_nonfinite_request_has_safe_validation_error(client):
     assert "input" not in result.text
     assert result.headers["x-content-type-options"] == "nosniff"
     assert result.headers["x-request-id"]
+
+
+def test_dataset_scoring_uses_bounded_chunks(client):
+    frame = synthetic(4100, seed=915)
+    imported = client.post(
+        "/api/v1/datasets/upload",
+        files={"file": ("chunks.csv", frame.to_csv(index=False).encode())},
+        data={"provenance": "synthetic"},
+    ).json()
+    predictor = client.app.state.predictor
+    original = predictor.predict
+    calls = []
+
+    def counted(frame, provenance):
+        calls.append(len(frame))
+        return original(frame, provenance)
+
+    predictor.predict = counted
+    result = client.post(f"/api/v1/datasets/{imported['dataset_id']}/score")
+    assert result.status_code == 200, result.text
+    assert result.json()["scored"] == 4100
+    assert calls == [2000, 2000, 100]
