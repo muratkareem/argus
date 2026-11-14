@@ -99,6 +99,10 @@ def test_graph_limits_are_explicit_and_keep_edges_inside_returned_nodes(client):
     assert neighborhood["truncated"] is True
     assert len(neighborhood["nodes"]) == 2
     assert "device-1" in {node["data"]["id"] for node in neighborhood["nodes"]}
+    # Reaching exactly four nodes at depth one must not hide truncation at
+    # the next requested expansion (accounts connect to cards as well).
+    exact = client.get("/api/v1/intelligence/graph?root=device-1&depth=2&node_limit=4").json()
+    assert len(exact["nodes"]) == 4 and exact["truncated"] is True
     assert client.get("/api/v1/intelligence/graph?node_limit=2001").status_code == 422
 
 

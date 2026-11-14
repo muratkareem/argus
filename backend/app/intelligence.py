@@ -301,8 +301,6 @@ def intelligence_router(db):
                     new_ids = new_ids[: max(available, 0)]
                 frontier = set(new_ids)
                 ids.update(frontier)
-                if len(ids) >= node_limit:
-                    break
             entities_query = entities_query.where(Entity.id.in_(ids))
         if shared_only:
             shared = (
