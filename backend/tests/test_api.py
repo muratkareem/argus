@@ -178,3 +178,46 @@ def test_generation_routes_absent_from_schema(client):
     routes = client.get("/openapi.json").json()["paths"]
     assert not any("copilot" in route for route in routes)
     assert "ollama_enabled" not in client.get("/api/v1/settings").json()
+
+
+@pytest.mark.parametrize("threshold, expected", [(0, 1), (1, 0)])
+def test_request_threshold_does_not_change_probability(client, threshold, expected):
+    features = synthetic(1, seed=827)[FEATURES].iloc[0].to_dict()
+    data = {
+        "features": features,
+        "provenance": "synthetic",
+        "threshold": threshold,
+        "transaction_id": "demo-1",
+    }
+    result = client.post("/api/v1/predict", json=data)
+    assert result.status_code == 200, result.text
+    output = result.json()
+    assert output["predicted_class"] == expected
+    assert output["decision_threshold"] == threshold
+    assert output["transaction_id"] == "demo-1"
+    assert 0 <= output["fraud_probability"] <= 1
+    data.pop("threshold")
+    assert (
+        client.post("/api/v1/predict", json=data).json()["fraud_probability"]
+        == output["fraud_probability"]
+    )
+
+
+@pytest.mark.parametrize("threshold", [-0.1, 1.1])
+def test_invalid_threshold_rejected(client, threshold):
+    data = {
+        "features": synthetic(1)[FEATURES].iloc[0].to_dict(),
+        "provenance": "synthetic",
+        "threshold": threshold,
+    }
+    assert client.post("/api/v1/predict", json=data).status_code == 422
+
+
+def test_inference_rejects_label_leakage(client):
+    features = synthetic(1).iloc[0].to_dict()
+    assert (
+        client.post(
+            "/api/v1/predict", json={"features": features, "provenance": "synthetic"}
+        ).status_code
+        == 422
+    )

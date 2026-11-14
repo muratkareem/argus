@@ -38,15 +38,53 @@ PRIORITIES = Literal["Low", "Medium", "High", "Critical"]
 
 
 class PredictInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     features: dict[str, float]
     provenance: Literal["ulb", "synthetic"]
+    threshold: float | None = Field(default=None, ge=0, le=1)
+    transaction_id: str | int | None = None
 
     @field_validator("features")
     @classmethod
     def valid_features(cls, value):
+        if set(value) != set(FEATURES):
+            raise ValueError("Prediction requires exactly Time, Amount and V1–V28")
         validate_frame(pd.DataFrame([value]))
         return value
+
+
+def risk_category(score):
+    """Display bands for uncalibrated estimates, independent of review threshold."""
+    return (
+        "critical"
+        if score >= 0.9
+        else "high"
+        if score >= 0.5
+        else "medium"
+        if score >= 0.1
+        else "low"
+    )
+
+
+def prediction_json(bundle, score, provenance, threshold=None, transaction_id=None):
+    threshold = bundle["threshold"] if threshold is None else threshold
+    flagged = bool(score >= threshold)
+    estimator = bundle["model"]
+    if hasattr(estimator, "steps"):
+        estimator = estimator.steps[-1][1]
+    return {
+        "transaction_id": transaction_id,
+        "model_version": bundle["version"],
+        "model_name": bundle.get("model_name", type(estimator).__name__),
+        "risk_score": float(score),
+        "fraud_probability": float(score),
+        "predicted_class": int(flagged),
+        "classification": "flagged" if flagged else "clear",
+        "risk_category": risk_category(score),
+        "decision_threshold": threshold,
+        "provenance": provenance,
+        "probability_type": "uncalibrated model class probability; not real-world certainty",
+    }
 
 
 class CaseCreate(BaseModel):
@@ -140,7 +178,7 @@ def create_app(settings=None):
 
     app.include_router(intelligence_router(db))
 
-    def prediction(features, provenance):
+    def prediction(features, provenance, threshold=None, transaction_id=None):
         started = time.perf_counter()
         try:
             bundle, score = predictor.predict(pd.DataFrame([features]), provenance)
@@ -149,11 +187,7 @@ def create_app(settings=None):
         except ValueError as exc:
             raise HTTPException(409, str(exc))
         return {
-            "model_version": bundle["version"],
-            "risk_score": float(score[0]),
-            "classification": "flagged" if score[0] >= bundle["threshold"] else "clear",
-            "decision_threshold": bundle["threshold"],
-            "provenance": provenance,
+            **prediction_json(bundle, score[0], provenance, threshold, transaction_id),
             "metadata": {
                 "processing_ms": round((time.perf_counter() - started) * 1000, 3),
                 "score_type": "uncalibrated model score",
@@ -168,7 +202,7 @@ def create_app(settings=None):
 
     @app.post("/api/v1/predict")
     def predict(data: PredictInput):
-        return prediction(data.features, data.provenance)
+        return prediction(data.features, data.provenance, data.threshold, data.transaction_id)
 
     @app.get("/api/v1/datasets")
     def datasets(session: Session = Depends(db)):
