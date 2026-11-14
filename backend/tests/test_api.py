@@ -297,3 +297,50 @@ def test_direct_explanation_matches_requested_prediction(client):
         client.post("/api/v1/predict/explanation", json={**data, "provenance": "ulb"}).status_code
         == 409
     )
+
+
+def test_optional_api_key_and_cors(settings):
+    settings.api_key = "test-key-for-local-tests-only"
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/api/v1/health").status_code == 200
+        assert client.get("/api/v1/overview").status_code == 401
+        assert (
+            client.get("/api/v1/overview", headers={"Authorization": "Bearer wrong"}).status_code
+            == 401
+        )
+        good = {"Authorization": "Bearer test-key-for-local-tests-only"}
+        assert client.get("/api/v1/overview", headers=good).status_code == 200
+        preflight = client.options(
+            "/api/v1/predict",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "Authorization",
+            },
+        )
+        assert preflight.status_code == 200
+        assert preflight.headers["access-control-allow-origin"] == "http://localhost:5173"
+        foreign = client.options(
+            "/api/v1/predict",
+            headers={
+                "Origin": "https://untrusted.example",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        assert foreign.status_code == 400
+
+
+def test_nonfinite_request_has_safe_validation_error(client):
+    import json
+
+    features = synthetic(1)[FEATURES].iloc[0].to_dict()
+    features["V1"] = float("nan")
+    result = client.post(
+        "/api/v1/predict",
+        content=json.dumps({"features": features, "provenance": "synthetic"}),
+        headers={"Content-Type": "application/json"},
+    )
+    assert result.status_code == 422
+    assert "input" not in result.text
+    assert result.headers["x-content-type-options"] == "nosniff"
+    assert result.headers["x-request-id"]

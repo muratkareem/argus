@@ -1,23 +1,26 @@
 import csv
 import io
 import json
+import logging
+import secrets
 import time
+import uuid
 from contextlib import asynccontextmanager
 from typing import Literal
 
 import pandas as pd
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import Integer, case, cast, func, or_, select, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.data import ingest
 from app.db import (
-    Base,
     Case,
     CaseEntity,
     CaseEvent,
@@ -29,12 +32,14 @@ from app.db import (
     Transaction,
     connect,
     iso_utc,
+    migrate,
 )
 from app.intelligence import AdvancedFilters, advanced_where, intelligence_router, timeline
 from app.ml import FEATURES, Predictor, validate_frame
 
 STATUSES = Literal["Open", "In Review", "Escalated", "Resolved", "False Positive"]
 PRIORITIES = Literal["Low", "Medium", "High", "Critical"]
+logger = logging.getLogger("argus.api")
 
 
 class PredictInput(BaseModel):
@@ -174,7 +179,11 @@ def create_app(settings=None):
 
     @asynccontextmanager
     async def lifespan(app):
-        Base.metadata.create_all(engine)
+        migrate(engine)
+        try:
+            predictor.load()
+        except (FileNotFoundError, ValueError, KeyError, OSError):
+            logger.info("Active model unavailable; prediction endpoints will report model status")
         yield
         engine.dispose()
 
@@ -184,8 +193,59 @@ def create_app(settings=None):
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "Authorization"],
     )
+
+    @app.middleware("http")
+    async def request_boundary(request, call_next):
+        started = time.perf_counter()
+        request_id = uuid.uuid4().hex
+        key = settings.api_key.get_secret_value() if settings.api_key else None
+        if (
+            key
+            and request.url.path.startswith("/api/v1/")
+            and request.url.path != "/api/v1/health"
+            and request.method != "OPTIONS"
+        ):
+            supplied = request.headers.get("Authorization", "")
+            if not secrets.compare_digest(supplied.encode(), f"Bearer {key}".encode()):
+                return JSONResponse(
+                    {"detail": "A valid API key is required"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Cache-Control"] = "no-store"
+        logger.info(
+            json.dumps(
+                {
+                    "request_id": request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": response.status_code,
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 3),
+                }
+            )
+        )
+        return response
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(_request, exc):
+        # Do not echo arbitrary request contents or non-finite floats into JSON errors.
+        return JSONResponse(
+            {"detail": [{k: e[k] for k in ("loc", "msg", "type")} for e in exc.errors()]},
+            status_code=422,
+        )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def database_error(_request, exc):
+        logger.error("Database operation failed: %s", type(exc).__name__)
+        return JSONResponse(
+            {"detail": "Database operation unavailable; retry or inspect local service health"},
+            status_code=503,
+        )
 
     def db():
         with factory() as session:
@@ -265,6 +325,7 @@ def create_app(settings=None):
                 "rows": d.rows,
                 "duplicates": d.duplicates,
                 "created_at": iso_utc(d.created_at),
+                "audit": d.audit or {},
             }
             for d in session.scalars(select(Dataset).order_by(Dataset.id.desc()))
         ]
