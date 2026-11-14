@@ -1323,7 +1323,6 @@ footer {
   }
 }
 
-
 .case-watchlist {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1433,5 +1432,42 @@ footer {
   }
   .volume-compact {
     display: inline;
+  }
+}
+
+.prediction-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.prediction-features {
+  margin: 18px 0;
+}
+.prediction-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 14px;
+}
+.prediction-feature-grid .field {
+  margin: 0;
+}
+.prediction-feature-grid input {
+  width: 100%;
+  min-width: 0;
+}
+.prediction-error {
+  margin-top: 14px;
+}
+.prediction-workspace .detail-row code {
+  max-width: 66%;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .prediction-controls {
+    grid-template-columns: 1fr;
+  }
+  .prediction-feature-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

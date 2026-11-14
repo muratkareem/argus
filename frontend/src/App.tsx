@@ -1,3 +1,4 @@
+import { PredictionForm } from "./pages/PredictionForm";
 import { GraphIntelligence } from "./pages/GraphIntelligence";
 import { InvestigationWorkspace } from "./pages/InvestigationWorkspace";
 import { TransactionIntelligence } from "./pages/TransactionIntelligence";
@@ -1143,6 +1144,7 @@ function Detection({
   }
   return (
     <>
+      <PredictionForm models={models} />
       <div className="two-grid">
         <Panel title="Inference pipeline">
           <div className="pipeline-steps">
