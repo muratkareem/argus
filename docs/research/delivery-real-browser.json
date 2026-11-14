@@ -1,0 +1,17 @@
+{
+  "verified_at": "2026-11-14T15:34:53.767Z",
+  "stored_real_ulb_rows": 993,
+  "model": "XGBoost",
+  "version": "20261114T080308283241Z-6d0da1ed",
+  "dashboard_first_navigation_to_snapshot_ms": 153.26012500000002,
+  "conditions": "One headless Chrome run, local Vite development server and SQLite; includes frontend navigation and data fetch; not cold OS startup or a p95",
+  "checks": [
+    "real dataset dashboard",
+    "transaction explorer and details",
+    "stored transaction SHAP",
+    "load real example",
+    "ULB prediction",
+    "direct SHAP",
+    "no page errors"
+  ]
+}

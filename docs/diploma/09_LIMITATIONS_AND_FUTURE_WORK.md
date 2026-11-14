@@ -9,3 +9,5 @@ Only one active model is supported. Batch activation races fail atomically rathe
 Joblib requires trusted local files. Optional shared API key lacks per-user authorization, revocation/audit identity and production TLS/rate controls. Anonymous transactions still merit private handling. This system makes no PCI/privacy-law/regulatory compliance or banking effectiveness claim. Review publisher licensing before reuse; do not commit data or credentials.
 
 Prioritized future work: independent multi-seed validation and calibration; query/export scaling measurements; safe dependency advisory updates; production identity/access and monitoring only if deployed beyond private demonstration. Additional infrastructure is not justified by current measurements.
+
+Delivery follow-up: source license review completed in ../DATASET_LICENSE.md. Compatible development dependency fixes reduce findings to seven moderate; production-only audit has zero. Calibration/generalization limits remain unchanged. Focused existing-model real-data checks are recorded in ../research/delivery-real-data-check.json.

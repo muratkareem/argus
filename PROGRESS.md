@@ -1,6 +1,10 @@
+# Authorized main delivery — 14 November 2026
+
+The user explicitly authorized normal publication to origin/main in the final-delivery attachment. The earlier no-push restriction is superseded for this delivery. Final review and exact local gates: docs/FINAL_DELIVERY.md. Source metadata/license review is complete; compatible npm updates reduce dev advisories from nine to seven, production-only audit zero. Real ULB browser/API/cold-warm/concurrency checks passed without retraining or redownload. The reproducibility assertion now tolerates1e-12 float roundoff while preserving exact count/structure checks. Main is delivered by fast-forward with all development commits preserved; remote SHA/Actions outcomes are checked after the push. See git log and the live Actions page for the immutable delivery commit/checks.
+
 # ARGUS checkpoint — 14 November 2026
 
-Branch: `development/diploma-ready`. All prior ML, Frontend and Data Security agent changes recovered; no overwrite or discarded work. No dataset redownload or repeated ULB training during recovery. No changes pushed. Last implementation commit before final verification checkpoint: `03edbe9`; find this checkpoint's exact hash with `git log -1 -- PROGRESS.md`.
+Branch: `development/diploma-ready`. All prior ML, Frontend and Data Security agent changes recovered; no overwrite or discarded work. No dataset redownload or repeated ULB training during recovery. Historical pre-delivery state: no changes had been pushed. Last implementation commit before final verification checkpoint: `03edbe9`; find this checkpoint's exact hash with `git log -1 -- PROGRESS.md`.
 
 ## Completed
 
