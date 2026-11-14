@@ -32,6 +32,15 @@ def test_training_and_inference_are_consistent_and_provenance_guarded(artifacts)
         "XGBoost",
     }
     assert sum(p["rows"] for p in report["partitions"].values()) == report["rows"]
+    assert report["report_schema_version"] == 2
+    assert bundle["feature_schema"] == FEATURES
+    assert bundle["model_name"] == report["selected_model"]
+    audit = report["dataset_audit"]
+    assert audit["feature_schema"] == FEATURES
+    assert sum(audit["class_counts"].values()) == report["rows"]
+    assert audit["fraud_fraction"] == report["fraud_rows"] / report["rows"]
+    assert not any(audit["missing_values"].values())
+    assert audit["amount"]["count"] == report["rows"]
     expected = max(report["models"], key=lambda m: m["validation_average_precision"])["name"]
     assert report["selected_model"] == expected
     for model in report["models"]:

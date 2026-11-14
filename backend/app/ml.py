@@ -198,6 +198,30 @@ def threshold_analysis(y, scores, selected_threshold, false_positive_cost=1.0, f
     }
 
 
+def dataset_audit(frame):
+    """Summarize observed input; no cardholder/merchant attributes are invented."""
+    return {
+        "feature_schema": FEATURES,
+        "target": "Class",
+        "dtypes": {column: str(dtype) for column, dtype in frame.dtypes.items()},
+        "missing_values": {column: int(value) for column, value in frame.isna().sum().items()},
+        "missing_value_policy": "Reject missing/nonfinite input; no fitted imputation",
+        "class_counts": {str(label): int(count) for label, count in frame.Class.value_counts().items()},
+        "fraud_fraction": float(frame.Class.mean()),
+        "amount": {str(key): float(value) for key, value in frame.Amount.describe(
+            percentiles=[0.5, 0.9, 0.99]
+        ).items()},
+        "time": {"minimum": float(frame.Time.min()), "maximum": float(frame.Time.max())},
+        "relationships": "No account, cardholder, merchant, device or geography identifiers exist",
+        "feature_meanings": {
+            "Time": "Seconds elapsed from first source transaction; synthetic fixtures use an artificial clock",
+            "Amount": "Nonnegative transaction amount; currency is not inferred",
+            "V1-V28": "Anonymized components; semantic labels are unavailable",
+            "Class": "1 fraud, 0 legitimate (declared ground truth)",
+        },
+    }
+
+
 def train(df, artifact_dir, provenance, split="stratified"):
     started = time.perf_counter()
     df = validate_frame(df, require_label=True)
@@ -301,6 +325,7 @@ def train(df, artifact_dir, provenance, split="stratified"):
         if name == selected:
             best_model, best_threshold = model, threshold
     report = {
+        "report_schema_version": 2,
         "version": version,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "provenance": provenance,
@@ -311,10 +336,13 @@ def train(df, artifact_dir, provenance, split="stratified"):
         "duplicates_removed": raw_rows - len(df),
         "rows": len(df),
         "fraud_rows": int(df.Class.sum()),
+        "dataset_audit": dataset_audit(df),
         "partitions": {
             k: {
                 "rows": len(idx),
                 "fraud": int(df.Class.iloc[idx].sum()),
+                "time_minimum": float(df.Time.iloc[idx].min()),
+                "time_maximum": float(df.Time.iloc[idx].max()),
                 "fingerprints_sha256": hashlib.sha256(idx.tobytes()).hexdigest(),
             }
             for k, idx in [("train", train_idx), ("validation", val_idx), ("test", test_idx)]
@@ -343,6 +371,9 @@ def train(df, artifact_dir, provenance, split="stratified"):
             "version": version,
             "provenance": provenance,
             "background": x_train.iloc[:100],
+            "model_name": selected,
+            "feature_schema": FEATURES,
+            "score_type": "uncalibrated model probability estimate",
         },
         version_dir / "model.joblib",
     )
