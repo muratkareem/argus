@@ -5,6 +5,7 @@ from app.data import IMPORT_CHUNK_SIZE, ingest
 from app.db import Dataset, Transaction, connect, migrate
 from app.ml import FEATURES, synthetic
 from sqlalchemy import func, select
+from sqlalchemy.orm import sessionmaker
 
 
 class FakePredictor:
@@ -117,3 +118,45 @@ def test_import_preserves_unscored_rows_when_model_is_unavailable(session):
     assert result["imported"] == 3
     assert all(score is None for score in session.scalars(select(Transaction.risk_score)))
     assert "without scores" in result["model_note"]
+
+
+@pytest.mark.parametrize("initially_missing", [False, True])
+def test_import_rolls_back_if_model_activation_changes_mid_upload(session, initially_missing):
+    class SwitchingPredictor(FakePredictor):
+        calls = 0
+
+        def predict(self, frame, provenance):
+            self.calls += 1
+            if initially_missing and self.calls == 1:
+                raise FileNotFoundError("model not activated yet")
+            bundle, scores = super().predict(frame, provenance)
+            bundle["version"] = f"version-{self.calls}"
+            return bundle, scores
+
+    with pytest.raises(ValueError, match="Active model changed"):
+        ingest(
+            session,
+            csv(synthetic(IMPORT_CHUNK_SIZE + 1)),
+            "Switch",
+            "synthetic",
+            SwitchingPredictor(),
+        )
+    assert session.scalar(select(func.count(Dataset.id))) == 0
+    assert session.scalar(select(func.count(Transaction.id))) == 0
+
+
+def test_concurrent_identical_imports_do_not_duplicate_transactions(session):
+    from concurrent.futures import ThreadPoolExecutor
+
+    factory = sessionmaker(bind=session.bind, expire_on_commit=False)
+    content = csv(synthetic(30, seed=908))
+
+    def upload():
+        with factory() as writer:
+            return ingest(writer, content, "Concurrent", "synthetic", FakePredictor())
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: upload(), range(2)))
+    assert sorted(result["imported"] for result in results) == [0, 30]
+    assert sorted(result["duplicates"] for result in results) == [0, 30]
+    assert session.scalar(select(func.count(Transaction.id))) == 30

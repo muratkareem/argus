@@ -50,6 +50,7 @@ def ingest(session, content, name, provenance, predictor):
     unique = frame.drop_duplicates(subset=FEATURES)
     imported = 0
     model_version = None
+    scoring_available = None
     model_note = "No matching trained model; import stored without scores."
     dataset = Dataset(name=name[:200], provenance=provenance, rows=0, duplicates=0, audit=audit)
     try:
@@ -99,6 +100,10 @@ def ingest(session, content, name, provenance, predictor):
                     raise ValueError(
                         "Active model changed during import; retry the complete upload"
                     ) from None
+            current_availability = bundle is not None
+            if scoring_available is not None and scoring_available != current_availability:
+                raise ValueError("Active model changed during import; retry the complete upload")
+            scoring_available = current_availability
             if bundle is not None:
                 if model_version is not None and model_version != bundle["version"]:
                     raise ValueError(
