@@ -12,9 +12,7 @@ test("analyst can investigate a scored transaction and persist evidence", async 
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/#overview");
-  await expect(
-    page.getByRole("heading", { name: "Command Center" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page.getByText("LIVE WORKSPACE SNAPSHOT")).toBeVisible();
   await expect(
     page.getByText(`${snapshot.scored} scored / ${snapshot.total} stored`),
@@ -164,7 +162,7 @@ test("research, synthetic graph, and settings pages are usable", async ({
     page.getByRole("heading", { name: "Imported datasets", exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("link", { name: "Intelligence Graph", exact: true })
+    .getByRole("link", { name: "Relationship demo", exact: true })
     .click();
   await expect(page.locator(".graph-canvas canvas").first()).toBeVisible();
   await page.getByLabel("Graph entity type").selectOption("Device");
@@ -187,9 +185,7 @@ test("overview is responsive and captures the actual workspace", async ({
     animations: "disabled",
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(
-    page.getByRole("heading", { name: "Command Center" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -209,12 +205,12 @@ test("workspace command navigation and display density persist", async ({
   await page.keyboard.press("ControlOrMeta+k");
   const search = page.getByRole("dialog", { name: "Workspace search" });
   await expect(search.getByLabel("Search workspace")).toBeFocused();
-  await search.getByLabel("Search workspace").fill("Laboratory");
+  await search.getByLabel("Search workspace").fill("performance");
   await search
-    .getByRole("link", { name: "ML Laboratory", exact: true })
+    .getByRole("link", { name: "Model performance", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "ML Laboratory", exact: true }),
+    page.getByRole("heading", { name: "Model performance", exact: true }),
   ).toBeVisible();
   await page.getByLabel("Display density").selectOption("comfortable");
   await page.reload();
@@ -369,7 +365,7 @@ test("graph neighborhoods and synthetic entity investigations stay linked", asyn
   ).toBeVisible();
 });
 
-test("Command Center risk exploration links to validated transaction filters", async ({
+test("Overview risk exploration links to validated transaction filters", async ({
   page,
 }) => {
   await page.goto("/#overview");
@@ -414,6 +410,7 @@ test("direct prediction uses actual features, threshold overrides, and on-demand
   await page.goto("/#detection");
   await page.getByRole("button", { name: "Load stored example" }).click();
   await expect(page.getByLabel("Feature Amount")).not.toHaveValue("");
+  await page.getByText("Decision settings", { exact: true }).click();
   await page.getByLabel("Decision threshold override").fill("0");
   const response = page.waitForResponse(
     (r) =>
@@ -431,6 +428,7 @@ test("direct prediction uses actual features, threshold overrides, and on-demand
   await expect(
     page.getByText("Uncalibrated model estimate · not certainty of fraud"),
   ).toBeVisible();
+  await page.getByText("Prediction metadata", { exact: true }).click();
   await expect(
     page
       .locator(".prediction-workspace")
@@ -438,6 +436,9 @@ test("direct prediction uses actual features, threshold overrides, and on-demand
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Explain prediction with SHAP" })
+    .click();
+  await page
+    .getByText("Explanation details and all features", { exact: true })
     .click();
   await expect(page.getByText(/SHAP output:/)).toBeVisible();
   await expect(
@@ -472,4 +473,31 @@ test("laboratory explores validation costs while test metrics remain fixed", asy
   await expect(
     page.getByText("Test Brier score (lower is better)"),
   ).toBeVisible();
+});
+
+test("mobile navigation is labeled, dismissible, and closes after route changes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#overview");
+  const menu = page.getByRole("button", { name: "Open navigation" });
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await menu.click();
+  const navigation = page.getByRole("dialog", { name: "Workspace navigation" });
+  await expect(navigation).toBeVisible();
+  await navigation
+    .getByRole("link", { name: "Transactions", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Transactions", exact: true }),
+  ).toBeVisible();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await menu.click();
+  await page.keyboard.press("Escape");
+  await expect(navigation).not.toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
 });

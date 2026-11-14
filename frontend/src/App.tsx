@@ -1,3 +1,4 @@
+import { ExplanationContributions } from "./components/ExplanationContributions";
 import { Risk, Empty, Loading } from "./ui";
 import { CommandMenu } from "./components/CommandMenu";
 export { Risk, Empty } from "./ui";
@@ -8,6 +9,7 @@ import {
   Check,
   ChevronRight,
   CircleHelp,
+  Menu,
   FileSearch,
   FlaskConical,
   Focus,
@@ -21,7 +23,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { api, send, percent } from "./api";
+import { api, send, percent, amount } from "./api";
 import type { Case, Settings, Tx } from "./types";
 const OverviewPage = lazy(() => import("./pages/OverviewPage"));
 const Detection = lazy(() => import("./pages/Detection"));
@@ -51,9 +53,9 @@ const pages = [
   ["overview", "Overview", LayoutDashboard],
   ["transactions", "Transactions", Activity],
   ["detection", "Fraud Detection", ShieldCheck],
-  ["laboratory", "ML Laboratory", FlaskConical],
+  ["laboratory", "Model performance", FlaskConical],
   ["investigations", "Investigations", FileSearch],
-  ["graph", "Intelligence Graph", Network],
+  ["graph", "Relationship demo", Network],
   ["settings", "Settings", SettingsIcon],
 ] as const;
 const route = () => location.hash.slice(1).split(/[/?]/)[0] || "overview";
@@ -69,11 +71,19 @@ export default function App() {
     [selectedTx, setSelectedTx] = useState<number | null>(null),
     [settings, setSettings] = useState<Settings | null>(null),
     [commandOpen, setCommandOpen] = useState(false),
+    [navOpen, setNavOpen] = useState(false),
     [density, setDensity] = useState(
       () => localStorage.getItem("argus-density") || "compact",
     );
   useEffect(() => {
-    const change = () => setPage(route());
+    const change = () => {
+      setPage(route());
+      setNavOpen(false);
+      setSelectedTx(null);
+      setUploadOpen(false);
+      setCommandOpen(false);
+      window.scrollTo(0, 0);
+    };
     addEventListener("hashchange", change);
     return () => removeEventListener("hashchange", change);
   }, []);
@@ -97,6 +107,7 @@ export default function App() {
         setCommandOpen((open) => !open);
       }
       if (event.key === "Escape") {
+        setNavOpen(false);
         setCommandOpen(false);
         setSelectedTx(null);
         setUploadOpen(false);
@@ -106,7 +117,7 @@ export default function App() {
     return () => removeEventListener("keydown", shortcut);
   }, []);
   useEffect(() => {
-    if (!commandOpen && !uploadOpen && selectedTx == null) return;
+    if (!navOpen && !commandOpen && !uploadOpen && selectedTx == null) return;
     const dialog = [
       ...document.querySelectorAll<HTMLElement>('[role="dialog"]'),
     ].at(-1);
@@ -137,14 +148,40 @@ export default function App() {
       document.removeEventListener("keydown", trap);
       if (previous?.isConnected) previous.focus();
     };
-  }, [commandOpen, uploadOpen, selectedTx]);
+  }, [navOpen, commandOpen, uploadOpen, selectedTx]);
   const refresh = () => setRevision((n) => n + 1);
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : String(e));
   const current = pages.find((p) => p[0] === page) ?? pages[0];
   return (
-    <div className="app-shell" data-density={density}>
-      <aside className="sidebar">
+    <div
+      className={"app-shell" + (navOpen ? " mobile-nav-open" : "")}
+      data-density={density}
+    >
+      <a
+        className="skip-link"
+        href="#workspace-content"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("workspace-content")?.focus();
+        }}
+      >
+        Skip to content
+      </a>
+      {navOpen && (
+        <button
+          className="nav-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
+      <aside
+        className="sidebar"
+        id="workspace-navigation"
+        aria-label="Workspace navigation"
+        role={navOpen ? "dialog" : undefined}
+        aria-modal={navOpen || undefined}
+      >
         <a className="brand" href="#overview" aria-label="ARGUS overview">
           <div className="brand-mark">
             <Focus size={27} />
@@ -153,44 +190,70 @@ export default function App() {
             ARGUS<small>FINANCIAL INTELLIGENCE</small>
           </span>
         </a>
-        <div className="workspace-label">
-          <span className="workspace-icon">A</span>
-          <div>
-            Research workspace<small>Local environment</small>
-          </div>
-          <span className="workspace-version">v0.1</span>
-        </div>
-        <div className="nav-label">WORKSPACE</div>
-        <nav>
-          {pages.slice(0, -1).map(([id, label, Icon]) => (
-            <a key={id} href={"#" + id} className={page === id ? "active" : ""}>
-              <Icon size={17} />
-              {label}
-            </a>
-          ))}
+        <div className="nav-label">REVIEW</div>
+        <nav aria-label="Main workflow">
+          {pages
+            .filter(([id]) =>
+              [
+                "overview",
+                "transactions",
+                "detection",
+                "investigations",
+              ].includes(id),
+            )
+            .map(([id, label, Icon]) => (
+              <a
+                key={id}
+                href={"#" + id}
+                aria-current={page === id ? "page" : undefined}
+                className={page === id ? "active" : ""}
+                title={label}
+              >
+                <Icon size={18} />
+                <span>{label}</span>
+              </a>
+            ))}
+        </nav>
+        <div className="nav-label">RESEARCH</div>
+        <nav aria-label="Research tools">
+          {pages
+            .filter(([id]) => ["laboratory", "graph"].includes(id))
+            .map(([id, label, Icon]) => (
+              <a
+                key={id}
+                href={"#" + id}
+                aria-current={page === id ? "page" : undefined}
+                className={page === id ? "active" : ""}
+                title={label}
+              >
+                <Icon size={18} />
+                <span>{label}</span>
+              </a>
+            ))}
         </nav>
         <div className="sidebar-bottom">
           <a href="#settings" className={page === "settings" ? "active" : ""}>
             <SettingsIcon size={17} />
             Settings
           </a>
-          <div className="research-card">
-            <ShieldCheck size={17} />
-            <span>
-              Built for research<small>Experimental · local use</small>
-            </span>
-          </div>
-          <div className="analyst">
-            <div className="avatar">RA</div>
-            <span>
-              Research analyst<small>ARGUS workspace</small>
-            </span>
-            <span className="online-dot" />
-          </div>
+          <p className="sidebar-caption">
+            Credit card fraud research
+            <br />
+            Private workspace
+          </p>
         </div>
       </aside>
       <div className="main-shell">
         <header className="topbar">
+          <button
+            className="icon-button mobile-menu"
+            aria-label="Open navigation"
+            aria-expanded={navOpen}
+            aria-controls="workspace-navigation"
+            onClick={() => setNavOpen((v) => !v)}
+          >
+            <Menu size={20} />
+          </button>
           <div className="breadcrumb">
             Workspace <ChevronRight size={13} />
             <span>{current[1]}</span>
@@ -218,29 +281,23 @@ export default function App() {
                 <option value="comfortable">Comfortable</option>
               </select>
             </label>
-            <span className="environment">
-              <span className="online-dot" />
-              LOCAL RESEARCH
-            </span>
+            <span className="environment">RESEARCH WORKSPACE</span>
             <a
               className="help"
-              href="http://127.0.0.1:8000/docs"
+              href="/docs"
               target="_blank"
               rel="noreferrer"
               title="Open API documentation"
             >
               <CircleHelp size={17} />
             </a>
-            <div className="avatar small">RA</div>
           </div>
         </header>
-        <main>
+        <main id="workspace-content" tabIndex={-1}>
           <div className="page-title">
             <div>
-              <div className="eyebrow">ARGUS / ANALYST WORKSPACE</div>
-              <h1>
-                {current[1] === "Overview" ? "Command Center" : current[1]}
-              </h1>
+              <div className="eyebrow">FRAUD DETECTION WORKSPACE</div>
+              <h1>{current[1]}</h1>
               <p>
                 {
                   (
@@ -264,10 +321,12 @@ export default function App() {
                 }
               </p>
             </div>
-            <button className="primary" onClick={() => setUploadOpen(true)}>
-              <Upload size={15} />
-              Import dataset
-            </button>
+            {["overview", "transactions", "detection"].includes(page) && (
+              <button className="primary" onClick={() => setUploadOpen(true)}>
+                <Upload size={15} />
+                Import dataset
+              </button>
+            )}
           </div>
           {error && (
             <div role="alert" className="alert error">
@@ -289,17 +348,6 @@ export default function App() {
               </button>
             </div>
           )}
-          <div className="provenance-banner">
-            <div className="banner-icon">
-              <FlaskConical size={17} />
-            </div>
-            <span>
-              <b>Research environment</b>
-              <span className="banner-separator">/</span>Synthetic fixtures and
-              ULB imports are tracked separately. Scores are uncalibrated.
-            </span>
-            <span className="banner-tag">EXPERIMENTAL</span>
-          </div>
           <Suspense fallback={<Loading />}>
             {page === "overview" && (
               <OverviewPage
@@ -362,7 +410,7 @@ export default function App() {
               ARGUS Intelligence Platform
             </span>
             <span>
-              Research prototype <i /> No real financial system connections
+              Research use · Uncalibrated estimates · No bank connection
             </span>
           </footer>
         </main>
@@ -526,6 +574,8 @@ function TransactionDrawer({
       model_version: string;
       matches_stored_prediction: boolean;
       caveat: string;
+      output_space?: string;
+      base_value?: number;
     } | null>(null),
     [busy, setBusy] = useState(false),
     [cases, setCases] = useState<Case[]>([]),
@@ -631,6 +681,12 @@ function TransactionDrawer({
               <span>Model version</span>
               <code>{tx.model_version ?? "Unscored"}</code>
             </div>
+            <a
+              className="secondary full"
+              href={`#detection?transaction=${tx.id}`}
+            >
+              Use for prediction <ArrowRight size={14} />
+            </a>
             <h3>Investigation</h3>
             <div className="case-links">
               {tx.case_ids?.map((c) => (
@@ -698,23 +754,13 @@ function TransactionDrawer({
                 <p className="muted">
                   Top contributions · positive values increase model output
                 </p>
-                {explanation.features.slice(0, 8).map((f) => (
-                  <div className="shap-row" key={f.feature}>
-                    <span className="mono">{f.feature}</span>
-                    <div>
-                      <i
-                        className={f.contribution > 0 ? "positive" : "negative"}
-                        style={{
-                          width: `${Math.min(Math.abs(f.contribution) * 22, 100)}%`,
-                        }}
-                      />
-                    </div>
-                    <b className="mono">
-                      {f.contribution > 0 ? "+" : ""}
-                      {f.contribution.toFixed(3)}
-                    </b>
-                  </div>
-                ))}
+                <ExplanationContributions
+                  features={explanation.features}
+                  outputSpace={explanation.output_space}
+                  baseValue={explanation.base_value}
+                  modelVersion={explanation.model_version}
+                  caveat={explanation.caveat}
+                />
               </div>
             )}
             <details>

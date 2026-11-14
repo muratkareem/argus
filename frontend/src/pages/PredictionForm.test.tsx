@@ -53,6 +53,10 @@ function mockApi() {
 describe("schema-based prediction", () => {
   it("exposes exactly the documented 30 features and disables prediction without a model", () => {
     render(<PredictionForm models={null} />);
+    expect(screen.getByText("Advanced features · V1–V28").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Decision settings").closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Advanced features · V1–V28"));
+    fireEvent.click(screen.getByText("Decision settings"));
     expect(screen.getAllByRole("spinbutton")).toHaveLength(31);
     transactionFeatures.forEach((feature) =>
       expect(screen.getByLabelText(`Feature ${feature}`)).toBeInTheDocument(),
@@ -70,6 +74,7 @@ describe("schema-based prediction", () => {
     await waitFor(() =>
       expect(screen.getByLabelText("Feature Amount")).toHaveValue(29),
     );
+    fireEvent.click(screen.getByText("Decision settings"));
     fireEvent.change(screen.getByLabelText("Decision threshold override"), {
       target: { value: "0.7" },
     });
@@ -92,6 +97,8 @@ describe("schema-based prediction", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Explain prediction with SHAP" }),
     );
+    await screen.findByText("Raises the score", { exact: false });
+    fireEvent.click(screen.getByText("Explanation details and all features"));
     expect(await screen.findByText(/SHAP output: probability/)).toBeVisible();
     const explanationCall = fetch.mock.calls.find(([url]) =>
       url.endsWith("/predict/explanation"),
@@ -130,4 +137,21 @@ describe("schema-based prediction", () => {
     });
     expect(screen.queryByText("80.0%")).toBeNull();
   });
+});
+
+it("loads a transaction deep link with its recorded provenance", async () => {
+  location.hash = "#detection?transaction=42";
+  const fetch = vi.fn(async (url: string) =>
+    url.endsWith("/transactions/42")
+      ? respond({ id: 42, features, provenance: "ulb" })
+      : respond(prediction),
+  );
+  vi.stubGlobal("fetch", fetch);
+  render(<PredictionForm models={models} />);
+  await waitFor(() =>
+    expect(screen.getByLabelText("Feature Amount")).toHaveValue(29),
+  );
+  expect(screen.getByLabelText("Prediction data source")).toHaveValue("ulb");
+  expect(screen.getByText(/Loaded TX-000042/)).toBeVisible();
+  location.hash = "";
 });

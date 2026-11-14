@@ -1,18 +1,9 @@
 import { useEffect, useState } from "react";
-import {
-  ArrowRight,
-  Check,
-  Plus,
-  LoaderCircle,
-  ShieldCheck,
-} from "lucide-react";
+import { Plus, LoaderCircle, ShieldCheck } from "lucide-react";
 import { api } from "../api";
 import { Panel, Empty } from "../ui";
 import { PredictionForm } from "./PredictionForm";
 import type { Dataset, Models } from "../types";
-const nav = (page: string) => {
-  location.hash = page;
-};
 export default function Detection({
   revision,
   refresh,
@@ -50,59 +41,6 @@ export default function Detection({
   return (
     <>
       <PredictionForm models={models} />
-      <div className="two-grid">
-        <Panel title="Inference pipeline">
-          <div className="pipeline-steps">
-            {[
-              [
-                "01",
-                "Validate schema",
-                "Time, V1–V28, Amount · optional Class",
-              ],
-              [
-                "02",
-                "Resolve provenance",
-                "ULB and synthetic models stay separate",
-              ],
-              ["03", "Score transactions", "Actual serialized model inference"],
-              [
-                "04",
-                "Persist evidence",
-                "Score, threshold, model version, source",
-              ],
-            ].map(([n, title, desc]) => (
-              <div key={n}>
-                <span className="step-number">{n}</span>
-                <div>
-                  <h3>{title}</h3>
-                  <p>{desc}</p>
-                </div>
-                <Check size={16} />
-              </div>
-            ))}
-          </div>
-        </Panel>
-        <Panel title="Active model">
-          <div className="padded">
-            <p className="muted">Current model version</p>
-            <code className="wrap-code">
-              {models?.active_version ?? "No model trained"}
-            </code>
-            <p>
-              Train reproducibly from the command line. A new experiment
-              activates only after its artifacts have been written.
-            </p>
-            <pre>
-              PYTHONPATH=backend uv run python -m app.ml
-              <br /> --csv data/private/creditcard.csv
-            </pre>
-            <button className="secondary" onClick={() => nav("laboratory")}>
-              Inspect experiments
-              <ArrowRight size={14} />
-            </button>
-          </div>
-        </Panel>
-      </div>
       <Panel
         title="Imported datasets"
         meta={
