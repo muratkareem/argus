@@ -53,6 +53,27 @@ class PredictInput(BaseModel):
         return value
 
 
+class BatchTransaction(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    id: str | int | None = None
+    features: dict[str, float]
+
+
+class BatchPredictInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    transactions: list[BatchTransaction] = Field(min_length=1, max_length=1000)
+    provenance: Literal["ulb", "synthetic"]
+    threshold: float | None = Field(default=None, ge=0, le=1)
+
+    @field_validator("transactions")
+    @classmethod
+    def valid_transactions(cls, value):
+        if any(set(item.features) != set(FEATURES) for item in value):
+            raise ValueError("Every transaction requires exactly Time, Amount and V1–V28")
+        validate_frame(pd.DataFrame([item.features for item in value]))
+        return value
+
+
 def risk_category(score):
     """Display bands for uncalibrated estimates, independent of review threshold."""
     return (
@@ -203,6 +224,27 @@ def create_app(settings=None):
     @app.post("/api/v1/predict")
     def predict(data: PredictInput):
         return prediction(data.features, data.provenance, data.threshold, data.transaction_id)
+
+    @app.post("/api/v1/predict/batch")
+    def predict_batch(data: BatchPredictInput):
+        started = time.perf_counter()
+        try:
+            bundle, scores = predictor.predict(
+                pd.DataFrame([item.features for item in data.transactions]), data.provenance
+            )
+        except FileNotFoundError:
+            raise HTTPException(503, "No trained model. Run the documented training command.")
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+        return {
+            "items": [
+                prediction_json(bundle, score, data.provenance, data.threshold, item.id)
+                for item, score in zip(data.transactions, scores)
+            ],
+            "count": len(scores),
+            "model_version": bundle["version"],
+            "processing_ms": round((time.perf_counter() - started) * 1000, 3),
+        }
 
     @app.get("/api/v1/datasets")
     def datasets(session: Session = Depends(db)):

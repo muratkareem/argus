@@ -221,3 +221,58 @@ def test_inference_rejects_label_leakage(client):
         ).status_code
         == 422
     )
+
+
+def test_batch_prediction_is_vectorized_and_matches_single(client, monkeypatch):
+    records = synthetic(7, seed=772)[FEATURES].to_dict("records")
+    predictor = client.app.state.predictor
+    original = predictor.predict
+    calls = []
+
+    def counted(frame, provenance):
+        calls.append(len(frame))
+        return original(frame, provenance)
+
+    monkeypatch.setattr(predictor, "predict", counted)
+    result = client.post(
+        "/api/v1/predict/batch",
+        json={
+            "transactions": [
+                {"id": str(i), "features": features} for i, features in enumerate(records)
+            ],
+            "provenance": "synthetic",
+            "threshold": 0.4,
+        },
+    )
+    assert result.status_code == 200, result.text
+    assert calls == [7]
+    body = result.json()
+    assert body["count"] == 7
+    for i, item in enumerate(body["items"]):
+        single = client.post(
+            "/api/v1/predict",
+            json={"features": records[i], "provenance": "synthetic", "threshold": 0.4},
+        ).json()
+        assert item["transaction_id"] == str(i)
+        assert item["fraud_probability"] == pytest.approx(single["fraud_probability"], abs=1e-12)
+        assert item["predicted_class"] == single["predicted_class"]
+
+
+@pytest.mark.parametrize("size", [0, 1001])
+def test_batch_size_limits(client, size):
+    item = {"features": synthetic(1)[FEATURES].iloc[0].to_dict()}
+    assert (
+        client.post(
+            "/api/v1/predict/batch", json={"transactions": [item] * size, "provenance": "synthetic"}
+        ).status_code
+        == 422
+    )
+
+
+def test_batch_rejects_invalid_feature_and_provenance(client):
+    features = synthetic(1)[FEATURES].iloc[0].to_dict()
+    data = {"transactions": [{"features": features}], "provenance": "ulb"}
+    assert client.post("/api/v1/predict/batch", json=data).status_code == 409
+    features["Amount"] = -1
+    data["provenance"] = "synthetic"
+    assert client.post("/api/v1/predict/batch", json=data).status_code == 422
