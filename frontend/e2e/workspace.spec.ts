@@ -142,7 +142,7 @@ test("CSV import updates statistics and reports validation errors", async ({
   await page.getByRole("button", { name: "Close import" }).click();
 });
 
-test("research, graph, local copilot, and settings pages are usable", async ({
+test("research, synthetic graph, and settings pages are usable", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -169,13 +169,6 @@ test("research, graph, local copilot, and settings pages are usable", async ({
   await expect(page.locator(".graph-canvas canvas").first()).toBeVisible();
   await page.getByLabel("Graph entity type").selectOption("Device");
   await page.getByRole("button", { name: "Fit", exact: true }).click();
-  await page.getByRole("link", { name: /AI Copilot/ }).click();
-  await expect(
-    page.getByText("Optional integration is disabled"),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Analyze selected evidence" }),
-  ).toBeDisabled();
   await page.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Environment", exact: true }),
@@ -374,28 +367,6 @@ test("graph neighborhoods and synthetic entity investigations stay linked", asyn
   await expect(
     page.getByRole("link", { name: `Case #${record.id}`, exact: true }),
   ).toBeVisible();
-});
-
-test("Copilot evidence remains inspectable while local generation is disabled", async ({
-  page,
-  request,
-}) => {
-  const cases = await (
-    await request.get("http://127.0.0.1:8000/api/v1/cases")
-  ).json();
-  const record = cases.find(
-    (c: { transaction_ids: number[] }) => c.transaction_ids.length,
-  );
-  await page.goto(`/#copilot/${record.id}`);
-  await page.getByRole("button", { name: "Load selected evidence" }).click();
-  await expect(page.getByText(/RETRIEVED SOURCES/)).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Analyze selected evidence" }),
-  ).toBeDisabled();
-  await page.getByText("Inspect structured context", { exact: true }).click();
-  await expect(page.locator(".copilot-selection pre")).toContainText(
-    "analyst_case",
-  );
 });
 
 test("Command Center risk exploration links to validated transaction filters", async ({

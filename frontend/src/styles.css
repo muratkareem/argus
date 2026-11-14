@@ -1386,33 +1386,6 @@ summary {
   height: 8px;
   border-radius: 2px;
 }
-.copilot-body {
-  max-width: 690px;
-  margin: auto;
-  padding: 25px 25px 40px;
-}
-.copilot-symbol {
-  width: 60px;
-  height: 60px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #335567;
-  border-radius: 12px;
-  background: linear-gradient(140deg, #1b3c4a, #172231);
-  color: #89bfcc;
-  margin-bottom: 25px;
-}
-.copilot-body h2 {
-  font-size: 23px;
-  font-weight: 450;
-  letter-spacing: -0.5px;
-}
-.copilot-body > p {
-  font-size: 12px;
-  color: #7b9aaf;
-  line-height: 1.9;
-  margin: 15px 0 26px;
-}
 .setup-box {
   padding: 20px;
   border: 1px solid #3a4b60;
@@ -1429,30 +1402,6 @@ summary {
 }
 .setup-box p {
   margin: 10px 0;
-}
-.copilot-answer {
-  padding: 20px;
-  background: #152431;
-  border: 1px solid #355264;
-  border-radius: 7px;
-  margin-top: 24px;
-}
-.copilot-answer p {
-  white-space: pre-wrap;
-  font-size: 12px;
-  line-height: 1.9;
-  color: #b7d0dd;
-  margin: 15px 0;
-}
-.copilot-answer small {
-  font-size: 9px;
-  color: #7a9eb1;
-}
-.copilot-answer pre {
-  max-height: 300px;
-  overflow: auto;
-  font-size: 10px;
-  white-space: pre-wrap;
 }
 @media (min-width: 1500px) {
   .chart {
@@ -1753,12 +1702,6 @@ summary {
   }
   .insight-bar small {
     font-size: 8px;
-  }
-  .copilot-body {
-    padding: 20px 16px;
-  }
-  .copilot-body h2 {
-    font-size: 20px;
   }
   footer {
     font-size: 7px;

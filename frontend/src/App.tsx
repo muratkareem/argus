@@ -1,4 +1,3 @@
-import { CopilotWorkspace } from "./pages/CopilotWorkspace";
 import { GraphIntelligence } from "./pages/GraphIntelligence";
 import { InvestigationWorkspace } from "./pages/InvestigationWorkspace";
 import { TransactionIntelligence } from "./pages/TransactionIntelligence";
@@ -24,7 +23,6 @@ import {
   Search,
   Settings as SettingsIcon,
   ShieldCheck,
-  Sparkles,
   Upload,
   X,
 } from "lucide-react";
@@ -59,7 +57,6 @@ const pages = [
   ["laboratory", "ML Laboratory", FlaskConical],
   ["investigations", "Investigations", FileSearch],
   ["graph", "Intelligence Graph", Network],
-  ["copilot", "AI Copilot", Sparkles],
   ["settings", "Settings", SettingsIcon],
 ] as const;
 const route = () => location.hash.slice(1).split(/[/?]/)[0] || "overview";
@@ -176,11 +173,10 @@ export default function App() {
         </div>
         <div className="nav-label">WORKSPACE</div>
         <nav>
-          {pages.slice(0, 7).map(([id, label, Icon]) => (
+          {pages.slice(0, -1).map(([id, label, Icon]) => (
             <a key={id} href={"#" + id} className={page === id ? "active" : ""}>
               <Icon size={17} />
               {label}
-              {id === "copilot" && <span className="nav-tag">LOCAL</span>}
             </a>
           ))}
         </nav>
@@ -272,8 +268,6 @@ export default function App() {
                         "Turn flagged transactions into documented analyst decisions.",
                       graph:
                         "Explore connections in an explicitly synthetic relationship network.",
-                      copilot:
-                        "Local assistance grounded in selected records and analyst evidence.",
                       settings:
                         "Runtime configuration and research environment.",
                     } as Record<string, string>
@@ -353,14 +347,6 @@ export default function App() {
           )}
           {page === "graph" && (
             <GraphIntelligence fail={fail} notify={setNotice} />
-          )}
-          {page === "copilot" && (
-            <CopilotWorkspace
-              settings={settings}
-              fail={fail}
-              notify={setNotice}
-              onSelect={setSelectedTx}
-            />
           )}
           {page === "settings" && <SettingsPage settings={settings} />}
           {!pages.some((p) => p[0] === page) && (
@@ -1524,8 +1510,6 @@ function SettingsPage({ settings }: { settings: Settings | null }) {
             ["Database", settings.database],
             ["Authentication", settings.authentication],
             ["Upload limit", `${settings.max_upload_mib} MiB`],
-            ["Ollama", settings.ollama_enabled ? "Enabled" : "Disabled"],
-            ["Local model", settings.ollama_model],
           ].map(([k, v]) => (
             <div className="detail-row" key={k}>
               <span>{k}</span>

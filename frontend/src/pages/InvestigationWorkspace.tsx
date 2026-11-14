@@ -449,15 +449,6 @@ export function InvestigationWorkspace({
               Link records from the transaction inspector or synthetic graph.
             </p>
           )}
-          <button
-            className="secondary full"
-            onClick={() => {
-              location.hash = `copilot/${active.id}`;
-            }}
-          >
-            Summarize case with Copilot
-            <ArrowRight size={12} />
-          </button>
         </div>
       ) : (
         <Empty>Evidence follows the selected case.</Empty>

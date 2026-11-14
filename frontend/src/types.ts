@@ -81,8 +81,6 @@ export type Dataset = {
 };
 export type Settings = {
   database: string;
-  ollama_enabled: boolean;
-  ollama_model: string;
   max_upload_mib: number;
   authentication: string;
   schema: string[];
