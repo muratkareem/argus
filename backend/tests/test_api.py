@@ -276,3 +276,24 @@ def test_batch_rejects_invalid_feature_and_provenance(client):
     features["Amount"] = -1
     data["provenance"] = "synthetic"
     assert client.post("/api/v1/predict/batch", json=data).status_code == 422
+
+
+def test_direct_explanation_matches_requested_prediction(client):
+    data = {
+        "features": synthetic(1, seed=321)[FEATURES].iloc[0].to_dict(),
+        "provenance": "synthetic",
+    }
+    prediction = client.post("/api/v1/predict", json=data).json()
+    result = client.post("/api/v1/predict/explanation", json=data)
+    assert result.status_code == 200, result.text
+    explanation = result.json()
+    assert explanation["model_version"] == prediction["model_version"]
+    assert explanation["risk_score"] == pytest.approx(prediction["risk_score"])
+    assert len(explanation["features"]) == 30
+    assert any(f["contribution"] > 0 for f in explanation["features"])
+    assert any(f["contribution"] < 0 for f in explanation["features"])
+    assert "output_space" in explanation
+    assert (
+        client.post("/api/v1/predict/explanation", json={**data, "provenance": "ulb"}).status_code
+        == 409
+    )

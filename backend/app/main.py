@@ -246,6 +246,15 @@ def create_app(settings=None):
             "processing_ms": round((time.perf_counter() - started) * 1000, 3),
         }
 
+    @app.post("/api/v1/predict/explanation")
+    def explain_prediction(data: PredictInput):
+        try:
+            return predictor.explain(data.features, data.provenance)
+        except FileNotFoundError:
+            raise HTTPException(503, "Train a matching model before requesting an explanation")
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+
     @app.get("/api/v1/datasets")
     def datasets(session: Session = Depends(db)):
         return [
