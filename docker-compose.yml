@@ -19,6 +19,7 @@ services:
     environment:
       ARGUS_DATABASE_URL: postgresql+psycopg://argus:${POSTGRES_PASSWORD}@postgres:5432/argus
       ARGUS_ARTIFACT_DIR: /app/ml/artifacts
+      ARGUS_API_KEY: ${ARGUS_API_KEY:-}
       ARGUS_SEED_DEMO: ${ARGUS_SEED_DEMO:-true}
     ports:
       - "127.0.0.1:8000:8000"

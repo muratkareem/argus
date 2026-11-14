@@ -4,8 +4,9 @@ import json
 
 from app.config import Settings
 from app.data import ingest, seed_graph
-from app.db import Base, connect
+from app.db import Dataset, Transaction, connect, migrate
 from app.ml import Predictor, synthetic, train
+from sqlalchemy import func, select
 
 settings = Settings()
 predictor = Predictor(settings.artifact_dir)
@@ -19,14 +20,25 @@ if (settings.artifact_dir / "current.json").exists():
 else:
     report = train(synthetic(2000, seed=42), settings.artifact_dir, "synthetic")
 engine, factory = connect(settings.database_url)
-Base.metadata.create_all(engine)
+migrate(engine)
 with factory() as session:
-    result = ingest(
-        session,
-        synthetic(600, seed=2026).to_csv(index=False).encode(),
-        "Synthetic demonstration · independent seed 2026",
-        "synthetic",
-        predictor,
+    existing = session.scalar(
+        select(func.count())
+        .select_from(Transaction)
+        .join(Dataset)
+        .where(Dataset.name == "Synthetic demonstration · independent seed 2026")
     )
+    if existing:
+        result = {"imported": 0, "existing": existing}
+    else:
+        result = ingest(
+            session,
+            synthetic(600, seed=2026).to_csv(index=False).encode(),
+            "Synthetic demonstration · independent seed 2026",
+            "synthetic",
+            predictor,
+        )
     seed_graph(session)
 print({"model": report["selected_model"], "version": report["version"], "import": result})
+
+engine.dispose()
