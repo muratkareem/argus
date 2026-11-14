@@ -9,6 +9,3 @@ class Settings(BaseSettings):
     artifact_dir: Path = Path("ml/artifacts")
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     max_upload_bytes: int = 192 * 1024 * 1024
-    ollama_enabled: bool = False
-    ollama_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "llama3.2"

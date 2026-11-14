@@ -85,7 +85,7 @@ def test_investigation_persists_across_app_restart(client, settings, imported):
         assert report["transactions"][0]["provenance"] == "synthetic"
 
 
-def test_invalid_inputs_and_disabled_copilot(client):
+def test_invalid_inputs_and_removed_generation_routes(client):
     assert (
         client.post("/api/v1/predict", json={"features": {}, "provenance": "synthetic"}).status_code
         == 422
@@ -101,7 +101,7 @@ def test_invalid_inputs_and_disabled_copilot(client):
         == 422
     )
     assert client.get("/api/v1/transactions/999999").status_code == 404
-    assert client.post("/api/v1/copilot", json={"question": "test"}).status_code == 503
+    assert client.post("/api/v1/copilot", json={"question": "test"}).status_code == 404
     assert (
         client.post(
             "/api/v1/cases", json={"title": "Invalid case", "transaction_ids": [999999]}
@@ -174,37 +174,7 @@ def test_graph_has_separate_synthetic_relationships(client):
     )
 
 
-def test_enabled_copilot_uses_only_readonly_evidence(settings, monkeypatch):
-    settings.ollama_enabled = True
-    requests = []
-
-    class FakeResponse:
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return {"message": {"content": "Synthetic case evidence only."}}
-
-    class FakeClient:
-        def __init__(self, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            pass
-
-        async def post(self, url, json):
-            requests.append(json)
-            return FakeResponse()
-
-    monkeypatch.setattr("app.main.httpx.AsyncClient", FakeClient)
-    with TestClient(create_app(settings)) as client:
-        cid = client.post("/api/v1/cases", json={"title": "Grounded case"}).json()["id"]
-        assert client.post("/api/v1/copilot", json={"question": "Summarize"}).status_code == 422
-        result = client.post("/api/v1/copilot", json={"question": "Summarize", "case_id": cid})
-        assert result.status_code == 200
-        assert result.json()["evidence"]["analyst_case"]["title"] == "Grounded case"
-        assert "tools" not in requests[0]
-        assert "Grounded case" in requests[0]["messages"][1]["content"]
+def test_generation_routes_absent_from_schema(client):
+    routes = client.get("/openapi.json").json()["paths"]
+    assert not any("copilot" in route for route in routes)
+    assert "ollama_enabled" not in client.get("/api/v1/settings").json()
