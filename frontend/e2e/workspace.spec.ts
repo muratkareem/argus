@@ -405,3 +405,71 @@ test("invalid ranges hide stale results and recover after correction", async ({
     page.getByRole("button", { name: /TX-\d+/ }).first(),
   ).toBeVisible();
 });
+
+test("direct prediction uses actual features, threshold overrides, and on-demand SHAP", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/#detection");
+  await page.getByRole("button", { name: "Load stored example" }).click();
+  await expect(page.getByLabel("Feature Amount")).not.toHaveValue("");
+  await page.getByLabel("Decision threshold override").fill("0");
+  const response = page.waitForResponse(
+    (r) =>
+      r.url().endsWith("/api/v1/predict") && r.request().method() === "POST",
+  );
+  await page
+    .getByRole("button", { name: "Predict transaction", exact: true })
+    .click();
+  const prediction = await (await response).json();
+  expect(prediction.predicted_class).toBe(1);
+  expect(prediction.decision_threshold).toBe(0);
+  await expect(
+    page.getByText("FRAUD CLASS PROBABILITY ESTIMATE", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Uncalibrated model estimate · not certainty of fraud"),
+  ).toBeVisible();
+  await expect(
+    page
+      .locator(".prediction-workspace")
+      .getByText(prediction.model_version, { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Explain prediction with SHAP" })
+    .click();
+  await expect(page.getByText(/SHAP output:/)).toBeVisible();
+  await expect(
+    page.getByText(
+      /Contributions describe model behavior, not causal evidence/,
+    ),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
+  expect(errors).toEqual([]);
+});
+
+test("laboratory explores validation costs while test metrics remain fixed", async ({
+  page,
+}) => {
+  await page.goto("/#laboratory");
+  await expect(page.getByRole("heading", { name: /ROC curve$/ })).toBeVisible();
+  const threshold = page.getByLabel("Validation threshold");
+  await expect(threshold).toBeVisible();
+  const matrix = await page.locator(".confusion").innerText();
+  await threshold.selectOption({ index: 0 });
+  await expect(
+    page.getByText(
+      /These illustrative costs are not measured financial losses/,
+    ),
+  ).toBeVisible();
+  expect(await page.locator(".confusion").innerText()).toBe(matrix);
+  await expect(
+    page.getByText("Test Brier score (lower is better)"),
+  ).toBeVisible();
+});
