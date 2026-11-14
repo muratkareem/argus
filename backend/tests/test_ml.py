@@ -131,7 +131,9 @@ def test_predictor_validates_schema_before_inference(artifacts):
         validate_frame(df)
 
 
-def test_artifact_manifest_is_integrity_checked_and_model_is_loaded_once(artifacts, tmp_path, monkeypatch):
+def test_artifact_manifest_is_integrity_checked_and_model_is_loaded_once(
+    artifacts, tmp_path, monkeypatch
+):
     import shutil
 
     import joblib
@@ -160,7 +162,9 @@ def test_artifact_manifest_is_integrity_checked_and_model_is_loaded_once(artifac
     assert len(calls) == 1  # Reject changed bytes before unpickling.
 
 
-@pytest.mark.parametrize("manifest", [{"version": "../outside"}, {"version": None}, {}, {"version": 123}])
+@pytest.mark.parametrize(
+    "manifest", [{"version": "../outside"}, {"version": None}, {}, {"version": 123}]
+)
 def test_artifact_manifest_rejects_unsafe_or_invalid_versions(tmp_path, manifest):
     (tmp_path / "current.json").write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="artifact"):

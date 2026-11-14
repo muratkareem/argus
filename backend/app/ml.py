@@ -134,9 +134,7 @@ def metrics(y, scores, threshold):
         np.linspace(0, len(curve_indices) - 1, min(len(curve_indices), 400), dtype=int)
     ]
     false_positive, true_positive, _ = roc_curve(y, scores)
-    roc_indices = np.linspace(
-        0, len(false_positive) - 1, min(len(false_positive), 400), dtype=int
-    )
+    roc_indices = np.linspace(0, len(false_positive) - 1, min(len(false_positive), 400), dtype=int)
     observed, predicted = calibration_curve(y, scores, n_bins=10, strategy="quantile")
     return {
         "precision": float(precision_score(y, pred, zero_division=0)),
@@ -166,13 +164,13 @@ def metrics(y, scores, threshold):
 def select_threshold(y, scores):
     """Maximize validation F1; stable ties choose the lower threshold (higher recall)."""
     precision, recall, thresholds = precision_recall_curve(y, scores)
-    f1 = 2 * precision[:-1] * recall[:-1] / np.maximum(
-        precision[:-1] + recall[:-1], 1e-12
-    )
+    f1 = 2 * precision[:-1] * recall[:-1] / np.maximum(precision[:-1] + recall[:-1], 1e-12)
     return float(thresholds[int(np.argmax(f1))])
 
 
-def threshold_analysis(y, scores, selected_threshold, false_positive_cost=1.0, false_negative_cost=25.0):
+def threshold_analysis(
+    y, scores, selected_threshold, false_positive_cost=1.0, false_negative_cost=25.0
+):
     """Illustrative costs in arbitrary units, computed on validation data only."""
     costs = np.asarray([false_positive_cost, false_negative_cost], dtype=float)
     if not np.isfinite(costs).all() or (costs < 0).any():
@@ -181,15 +179,17 @@ def threshold_analysis(y, scores, selected_threshold, false_positive_cost=1.0, f
     for threshold in np.unique(np.r_[np.linspace(0, 1, 21), selected_threshold]):
         predicted = np.asarray(scores) >= threshold
         tn, fp, fn, tp = confusion_matrix(y, predicted, labels=[0, 1]).ravel()
-        rows.append({
-            "threshold": float(threshold),
-            "precision": float(tp / max(tp + fp, 1)),
-            "recall": float(tp / max(tp + fn, 1)),
-            "f1": float(2 * tp / max(2 * tp + fp + fn, 1)),
-            "false_positives": int(fp),
-            "false_negatives": int(fn),
-            "estimated_cost": float(fp * false_positive_cost + fn * false_negative_cost),
-        })
+        rows.append(
+            {
+                "threshold": float(threshold),
+                "precision": float(tp / max(tp + fp, 1)),
+                "recall": float(tp / max(tp + fn, 1)),
+                "f1": float(2 * tp / max(2 * tp + fp + fn, 1)),
+                "false_positives": int(fp),
+                "false_negatives": int(fn),
+                "estimated_cost": float(fp * false_positive_cost + fn * false_negative_cost),
+            }
+        )
     return {
         "partition": "validation",
         "selection_objective": "maximum F1; cost illustration does not select the threshold",
@@ -212,11 +212,14 @@ def dataset_audit(frame):
         "dtypes": {column: str(dtype) for column, dtype in frame.dtypes.items()},
         "missing_values": {column: int(value) for column, value in frame.isna().sum().items()},
         "missing_value_policy": "Reject missing/nonfinite input; no fitted imputation",
-        "class_counts": {str(label): int(count) for label, count in frame.Class.value_counts().items()},
+        "class_counts": {
+            str(label): int(count) for label, count in frame.Class.value_counts().items()
+        },
         "fraud_fraction": float(frame.Class.mean()),
-        "amount": {str(key): float(value) for key, value in frame.Amount.describe(
-            percentiles=[0.5, 0.9, 0.99]
-        ).items()},
+        "amount": {
+            str(key): float(value)
+            for key, value in frame.Amount.describe(percentiles=[0.5, 0.9, 0.99]).items()
+        },
         "time": {"minimum": float(frame.Time.min()), "maximum": float(frame.Time.max())},
         "relationships": "No account, cardholder, merchant, device or geography identifiers exist",
         "feature_meanings": {
@@ -342,7 +345,9 @@ def train(df, artifact_dir, provenance, split="stratified"):
                 "validation_average_precision": ap,
                 "inference_latency": latency,
                 "validation": metrics(y_val, validation_scores, threshold),
-                "validation_threshold_analysis": threshold_analysis(y_val, validation_scores, threshold),
+                "validation_threshold_analysis": threshold_analysis(
+                    y_val, validation_scores, threshold
+                ),
                 "test": metrics(df.Class.iloc[test_idx], test_scores, threshold),
                 "parameters": {
                     k: (None if isinstance(v, float) and not np.isfinite(v) else v)
@@ -421,8 +426,12 @@ def train(df, artifact_dir, provenance, split="stratified"):
         model_checksum = hashlib.file_digest(model_file, "sha256").hexdigest()
     # A unique temporary name allows independent training processes to finish
     # without sharing a partial manifest. Activation is one atomic rename.
-    with tempfile.NamedTemporaryFile("w", dir=path, prefix="current-", suffix=".tmp", delete=False) as temp:
-        json.dump({"version": version, "model_sha256": model_checksum, "artifact_format_version": 2}, temp)
+    with tempfile.NamedTemporaryFile(
+        "w", dir=path, prefix="current-", suffix=".tmp", delete=False
+    ) as temp:
+        json.dump(
+            {"version": version, "model_sha256": model_checksum, "artifact_format_version": 2}, temp
+        )
         manifest_path = Path(temp.name)
     manifest_path.replace(path / "current.json")
     return report
@@ -450,20 +459,26 @@ class Predictor:
             try:
                 manifest = json.loads(manifest_path.read_text())
                 version = manifest["version"]
-                if not isinstance(version, str) or not version or any(
-                    c not in "0123456789TZ-abcdef" for c in version
+                if (
+                    not isinstance(version, str)
+                    or not version
+                    or any(c not in "0123456789TZ-abcdef" for c in version)
                 ):
                     raise ValueError("Invalid server-owned artifact version")
                 if version != self.version:
                     model_path = self.directory / version / "model.joblib"
                     if not model_path.resolve().is_relative_to(self.directory.resolve()):
-                        raise ValueError("Model artifact must remain inside the server-owned directory")
+                        raise ValueError(
+                            "Model artifact must remain inside the server-owned directory"
+                        )
                     checksum = manifest.get("model_sha256")
                     if checksum:
                         with model_path.open("rb") as model_file:
                             actual = hashlib.file_digest(model_file, "sha256").hexdigest()
                         if actual != checksum:
-                            raise ValueError("Model artifact checksum mismatch; retrain or restore trusted artifacts")
+                            raise ValueError(
+                                "Model artifact checksum mismatch; retrain or restore trusted artifacts"
+                            )
                     bundle = joblib.load(model_path)
                     if bundle.get("version") != version:
                         raise ValueError("Model and manifest versions differ")
@@ -478,11 +493,15 @@ class Predictor:
                         raise ValueError("Classifier must use binary class order [0, 1]")
                     columns = getattr(bundle["model"], "feature_names_in_", FEATURES)
                     if list(columns) != FEATURES:
-                        raise ValueError("Classifier feature order differs from the required schema")
+                        raise ValueError(
+                            "Classifier feature order differs from the required schema"
+                        )
                     self.bundle, self.version = bundle, version
                 self._manifest_signature = signature
             except (KeyError, TypeError, AttributeError, EOFError, pickle.UnpicklingError) as exc:
-                raise ValueError("Invalid model artifact; retrain or restore trusted artifacts") from exc
+                raise ValueError(
+                    "Invalid model artifact; retrain or restore trusted artifacts"
+                ) from exc
             return self.bundle
 
     def predict(self, frame, provenance):
@@ -493,9 +512,11 @@ class Predictor:
                 f"Active model trained on {bundle['provenance']}; cannot score {provenance} data"
             )
         scores = np.asarray(bundle["model"].predict_proba(frame[FEATURES])[:, 1], dtype=float)
-        if scores.shape != (len(frame),) or not np.isfinite(scores).all() or (
-            (scores < 0) | (scores > 1)
-        ).any():
+        if (
+            scores.shape != (len(frame),)
+            or not np.isfinite(scores).all()
+            or ((scores < 0) | (scores > 1)).any()
+        ):
             raise ValueError("Classifier returned invalid probability estimates")
         return bundle, scores
 
@@ -544,10 +565,14 @@ class Predictor:
                 values = values[:, 1]
             base_values = np.asarray(result.base_values[0]).reshape(-1)
             base = float(base_values[-1])
-            output_space = "probability" if isinstance(model, RandomForestClassifier) else "log-odds"
+            output_space = (
+                "probability" if isinstance(model, RandomForestClassifier) else "log-odds"
+            )
         raw = float(base + np.sum(values))
-        reconstructed = raw if output_space == "probability" else float(
-            1 / (1 + np.exp(np.clip(-raw, -709, 709)))
+        reconstructed = (
+            raw
+            if output_space == "probability"
+            else float(1 / (1 + np.exp(np.clip(-raw, -709, 709))))
         )
         return {
             "method": "SHAP",
