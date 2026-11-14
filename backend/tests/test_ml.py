@@ -41,7 +41,15 @@ def test_training_and_inference_are_consistent_and_provenance_guarded(artifacts)
     assert audit["fraud_fraction"] == report["fraud_rows"] / report["rows"]
     assert not any(audit["missing_values"].values())
     assert audit["amount"]["count"] == report["rows"]
-    expected = max(report["models"], key=lambda m: m["validation_average_precision"])["name"]
+    # The declared policy uses measured latency for exact validation-AP ties.
+    # Choosing the first tied candidate incorrectly depends on host scheduling.
+    expected = max(
+        report["models"],
+        key=lambda m: (
+            m["validation_average_precision"],
+            -m["inference_latency"]["single_p95_ms"],
+        ),
+    )["name"]
     assert report["selected_model"] == expected
     for model in report["models"]:
         assert 0 <= model["threshold"] <= 1
