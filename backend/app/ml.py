@@ -14,16 +14,19 @@ import joblib
 import numpy as np
 import pandas as pd
 import sklearn
+from sklearn.calibration import calibration_curve
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     average_precision_score,
+    brier_score_loss,
     confusion_matrix,
     f1_score,
     precision_recall_curve,
     precision_score,
     recall_score,
     roc_auc_score,
+    roc_curve,
 )
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
@@ -35,6 +38,8 @@ SEED = 42
 
 
 def validate_frame(df: pd.DataFrame, require_label=False):
+    if not df.columns.is_unique:
+        raise ValueError("Duplicate column names are not permitted")
     missing = set(FEATURES + (["Class"] if require_label else [])) - set(df.columns)
     if missing:
         raise ValueError(f"Missing columns: {', '.join(sorted(missing))}")
@@ -52,7 +57,43 @@ def validate_frame(df: pd.DataFrame, require_label=False):
         raise ValueError("Time and Amount must be nonnegative")
     if "Class" in out and not out["Class"].isin([0, 1]).all():
         raise ValueError("Class must be binary (0 or 1)")
+    # Stable feature order and numeric types make hashes and model inputs independent
+    # of CSV column ordering and inferred integer/float representation.
+    out = out[FEATURES + (["Class"] if "Class" in out else [])]
+    out[FEATURES] = out[FEATURES].astype("float64")
+    if "Class" in out:
+        out["Class"] = out["Class"].astype("int8")
     return out
+
+
+def partition_indices(df, split="stratified"):
+    """Return disjoint 60/20/20 partitions without fitting any transformation."""
+    if split not in {"stratified", "chronological"}:
+        raise ValueError("split must be stratified or chronological")
+    indices = np.arange(len(df))
+    if split == "chronological":
+        indices = df.sort_values("Time", kind="stable").index.to_numpy()
+        first = df.loc[indices[int(len(df) * 0.6)], "Time"]
+        second = df.loc[indices[int(len(df) * 0.8)], "Time"]
+        partitions = (
+            df.index[df.Time < first].to_numpy(),
+            df.index[(df.Time >= first) & (df.Time < second)].to_numpy(),
+            df.index[df.Time >= second].to_numpy(),
+        )
+    else:
+        train_idx, rest = train_test_split(
+            indices, test_size=0.4, stratify=df.Class, random_state=SEED
+        )
+        val_idx, test_idx = train_test_split(
+            rest, test_size=0.5, stratify=df.Class.iloc[rest], random_state=SEED
+        )
+        partitions = (train_idx, val_idx, test_idx)
+    for idx in partitions:
+        if df.Class.iloc[idx].nunique() != 2:
+            raise ValueError(
+                "Every partition must contain both classes; chronological split is unsuitable"
+            )
+    return partitions
 
 
 def synthetic(n=2000, seed=SEED):
@@ -71,6 +112,13 @@ def synthetic(n=2000, seed=SEED):
 
 
 def metrics(y, scores, threshold):
+    scores = np.asarray(scores, dtype=float)
+    if not np.isfinite(threshold) or not 0 <= threshold <= 1:
+        raise ValueError("Decision threshold must be finite and between 0 and 1")
+    if scores.ndim != 1 or len(scores) != len(y):
+        raise ValueError("Scores must contain one value per label")
+    if not np.isfinite(scores).all() or ((scores < 0) | (scores > 1)).any():
+        raise ValueError("Scores must be finite and between 0 and 1")
     pred = scores >= threshold
     tn, fp, fn, tp = confusion_matrix(y, pred, labels=[0, 1]).ravel()
     p, r, _ = precision_recall_curve(y, scores)
@@ -79,6 +127,11 @@ def metrics(y, scores, threshold):
     curve_indices = curve_indices[
         np.linspace(0, len(curve_indices) - 1, min(len(curve_indices), 400), dtype=int)
     ]
+    false_positive, true_positive, _ = roc_curve(y, scores)
+    roc_indices = np.linspace(
+        0, len(false_positive) - 1, min(len(false_positive), 400), dtype=int
+    )
+    observed, predicted = calibration_curve(y, scores, n_bins=10, strategy="quantile")
     return {
         "precision": float(precision_score(y, pred, zero_division=0)),
         "recall": float(recall_score(y, pred, zero_division=0)),
@@ -86,6 +139,16 @@ def metrics(y, scores, threshold):
         "average_precision": float(average_precision_score(y, scores)),
         "roc_auc": float(roc_auc_score(y, scores)),
         "false_positive_rate": float(fp / max(tn + fp, 1)),
+        "false_negative_rate": float(fn / max(fn + tp, 1)),
+        "brier_score": float(brier_score_loss(y, scores)),
+        "calibration_curve": [
+            {"mean_predicted_probability": float(a), "fraction_positive": float(b)}
+            for a, b in zip(predicted, observed)
+        ],
+        "roc_curve": [
+            {"false_positive_rate": float(a), "true_positive_rate": float(b)}
+            for a, b in zip(false_positive[roc_indices], true_positive[roc_indices])
+        ],
         "confusion_matrix": [[int(tn), int(fp)], [int(fn), int(tp)]],
         "pr_curve": [
             {"recall": float(a), "precision": float(b)}
@@ -105,27 +168,7 @@ def train(df, artifact_dir, provenance, split="stratified"):
     df = df.drop_duplicates(subset=FEATURES).reset_index(drop=True)
     if len(df) < 100 or df["Class"].value_counts().min() < 12 or df["Class"].nunique() != 2:
         raise ValueError("Training needs at least 100 rows and 12 examples of each class")
-    indices = np.arange(len(df))
-    if split == "chronological":
-        indices = df.sort_values("Time", kind="stable").index.to_numpy()
-        # Equal timestamps belong to one partition to prevent temporal overlap.
-        first = df.loc[indices[int(len(df) * 0.6)], "Time"]
-        second = df.loc[indices[int(len(df) * 0.8)], "Time"]
-        train_idx = df.index[df.Time < first].to_numpy()
-        val_idx = df.index[(df.Time >= first) & (df.Time < second)].to_numpy()
-        test_idx = df.index[df.Time >= second].to_numpy()
-    else:
-        train_idx, rest = train_test_split(
-            indices, test_size=0.4, stratify=df.Class, random_state=SEED
-        )
-        val_idx, test_idx = train_test_split(
-            rest, test_size=0.5, stratify=df.Class.iloc[rest], random_state=SEED
-        )
-    for idx in (train_idx, val_idx, test_idx):
-        if df.Class.iloc[idx].nunique() != 2:
-            raise ValueError(
-                "Every partition must contain both classes; chronological split is unsuitable"
-            )
+    train_idx, val_idx, test_idx = partition_indices(df, split)
     x_train, y_train = df[FEATURES].iloc[train_idx], df.Class.iloc[train_idx]
     x_val, y_val = df[FEATURES].iloc[val_idx], df.Class.iloc[val_idx]
     ratio = float((y_train == 0).sum() / max((y_train == 1).sum(), 1))
@@ -286,6 +329,7 @@ class Predictor:
         return self.bundle
 
     def predict(self, frame, provenance):
+        frame = validate_frame(frame)
         bundle = self.load()
         if bundle["provenance"] != provenance:
             raise ValueError(

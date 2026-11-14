@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 import pytest
-from app.ml import FEATURES, Predictor, metrics, synthetic, train, validate_frame
+from app.ml import FEATURES, Predictor, metrics, partition_indices, synthetic, train, validate_frame
 
 
 def test_training_and_inference_are_consistent_and_provenance_guarded(artifacts):
@@ -49,6 +49,38 @@ def test_validation_rejects_malformed_data():
     df.loc[0, "V1"] = np.nan
     with pytest.raises(ValueError, match="non-finite"):
         validate_frame(df)
+
+
+def test_schema_is_canonical_and_rejects_ambiguous_columns():
+    frame = synthetic(100)
+    canonical = validate_frame(frame)
+    reordered = validate_frame(frame[frame.columns[::-1]])
+    pd.testing.assert_frame_equal(canonical, reordered)
+    with pytest.raises(ValueError, match="Duplicate column"):
+        validate_frame(pd.concat([frame, frame[["Amount"]]], axis=1))
+
+
+@pytest.mark.parametrize("split", ["stratified", "chronological"])
+def test_partitions_are_disjoint_reproducible_and_preserve_timestamps(split):
+    frame = synthetic(1000)
+    frame["Time"] = (frame.Time // 1000) * 1000
+    first = partition_indices(frame, split)
+    second = partition_indices(frame, split)
+    assert sorted(np.concatenate(first)) == list(range(len(frame)))
+    for left, right in zip(first, second):
+        np.testing.assert_array_equal(left, right)
+    if split == "chronological":
+        assert frame.Time.iloc[first[0]].max() < frame.Time.iloc[first[1]].min()
+        assert frame.Time.iloc[first[1]].max() < frame.Time.iloc[first[2]].min()
+    with pytest.raises(ValueError, match="split must"):
+        partition_indices(frame, "unsupported")
+
+
+def test_predictor_validates_schema_before_inference(artifacts):
+    frame = synthetic(2)
+    frame.loc[0, "Amount"] = -1
+    with pytest.raises(ValueError, match="nonnegative"):
+        Predictor(artifacts).predict(frame, "synthetic")
     df = synthetic(100)
     df.loc[0, "Class"] = 2
     with pytest.raises(ValueError, match="binary"):
@@ -74,6 +106,26 @@ def test_metrics_do_not_reward_majority_accuracy():
     assert result["recall"] == 0
     assert result["f1"] == 0
     assert result["confusion_matrix"] == [[99, 0], [1, 0]]
+    assert result["false_negative_rate"] == 1
+    assert result["false_positive_rate"] == 0
+    assert result["brier_score"] == pytest.approx((99 * 0.01**2 + 0.99**2) / 100)
+    assert result["roc_curve"][0] == {"false_positive_rate": 0, "true_positive_rate": 0}
+    assert result["roc_curve"][-1] == {"false_positive_rate": 1, "true_positive_rate": 1}
+    assert result["calibration_curve"] == [
+        {"mean_predicted_probability": pytest.approx(0.01), "fraction_positive": 0.01}
+    ]
+
+
+@pytest.mark.parametrize("threshold", [-0.1, 1.1, np.nan])
+def test_metrics_reject_invalid_threshold(threshold):
+    with pytest.raises(ValueError, match="threshold"):
+        metrics([0, 1], np.array([0.2, 0.8]), threshold)
+
+
+@pytest.mark.parametrize("scores", [[-1, 0.5], [0.2, 2], [0.2, np.nan], [[0.2], [0.8]]])
+def test_metrics_reject_invalid_scores(scores):
+    with pytest.raises(ValueError, match="Scores"):
+        metrics([0, 1], scores, 0.5)
 
 
 @pytest.mark.parametrize("kind", ["linear", "forest", "xgboost"])
