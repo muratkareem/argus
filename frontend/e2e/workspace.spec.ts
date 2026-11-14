@@ -60,6 +60,9 @@ test("analyst can investigate a scored transaction and persist evidence", async 
     ),
   ).toBeVisible();
   await page
+    .getByRole("button", { name: "Analyst decision", exact: true })
+    .click();
+  await page
     .getByLabel("Analyst decision")
     .fill("Continue review; model alert is not proof of fraud.");
   await page.getByRole("button", { name: "Save decision" }).click();
@@ -69,6 +72,9 @@ test("analyst can investigate a scored transaction and persist evidence", async 
     .getByRole("button", { name: `#${caseId} · Review ${txName}`, exact: true })
     .click();
   await expect(page.getByLabel("Case status")).toHaveValue("In Review");
+  await page
+    .getByRole("button", { name: "Analyst decision", exact: true })
+    .click();
   await expect(page.getByLabel("Analyst decision")).toHaveValue(
     "Continue review; model alert is not proof of fraud.",
   );
@@ -223,6 +229,9 @@ test("advanced transaction queries persist and global search opens stored record
   request,
 }) => {
   await page.goto("/#transactions");
+  await page
+    .getByText("Advanced filters & saved views", { exact: false })
+    .click();
   await page.getByLabel("Minimum amount").fill("20");
   await page.getByLabel("Maximum amount").fill("150");
   const viewName = `Analyst range ${Date.now()}`;
@@ -231,12 +240,15 @@ test("advanced transaction queries persist and global search opens stored record
   await expect(page.getByLabel("Saved transaction views")).not.toHaveValue("");
   await page.reload();
   await page
+    .getByText("Advanced filters & saved views", { exact: false })
+    .click();
+  await page
     .getByLabel("Saved transaction views")
     .selectOption({ label: viewName });
   await expect(page.getByLabel("Minimum amount")).toHaveValue("20");
   await expect(page.getByLabel("Maximum amount")).toHaveValue("150");
   const download = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Export filtered CSV" }).click();
+  await page.getByRole("button", { name: "Export filtered CSV" }).click();
   const csv = (await readFile((await (await download).path())!, "utf8"))
     .trim()
     .split("\n");
@@ -389,6 +401,9 @@ test("invalid ranges hide stale results and recover after correction", async ({
   page,
 }) => {
   await page.goto("/#transactions");
+  await page
+    .getByText("Advanced filters & saved views", { exact: false })
+    .click();
   await page.getByLabel("Minimum amount").fill("500");
   await page.getByLabel("Maximum amount").fill("1");
   await expect(page.getByRole("alert")).toContainText(
@@ -459,20 +474,24 @@ test("laboratory explores validation costs while test metrics remain fixed", asy
   page,
 }) => {
   await page.goto("/#laboratory");
+  const matrix = await page.locator(".confusion").innerText();
+  await page
+    .getByRole("button", { name: "Calibration & thresholds", exact: true })
+    .click();
   await expect(page.getByRole("heading", { name: /ROC curve$/ })).toBeVisible();
   const threshold = page.getByLabel("Validation threshold");
   await expect(threshold).toBeVisible();
-  const matrix = await page.locator(".confusion").innerText();
   await threshold.selectOption({ index: 0 });
   await expect(
     page.getByText(
       /These illustrative costs are not measured financial losses/,
     ),
   ).toBeVisible();
-  expect(await page.locator(".confusion").innerText()).toBe(matrix);
   await expect(
     page.getByText("Test Brier score (lower is better)"),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Test results", exact: true }).click();
+  expect(await page.locator(".confusion").innerText()).toBe(matrix);
 });
 
 test("mobile navigation is labeled, dismissible, and closes after route changes", async ({
@@ -500,4 +519,37 @@ test("mobile navigation is labeled, dismissible, and closes after route changes"
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBeTruthy();
+});
+
+test("a stored transaction flows into prediction without reentering its feature vector", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/#transactions");
+  const row = page.getByRole("button", { name: /TX-\d+/ }).first();
+  await row.click();
+  const drawer = page.getByRole("dialog", { name: "Transaction details" });
+  await drawer.getByRole("link", { name: "Use for prediction" }).click();
+  await expect(drawer).not.toBeVisible();
+  const txid = new URLSearchParams(new URL(page.url()).hash.split("?")[1]).get(
+    "transaction",
+  );
+  const tx = await (await request.get(`/api/v1/transactions/${txid}`)).json();
+  await expect(page.getByLabel("Feature Amount")).toHaveValue(
+    String(tx.features.Amount),
+  );
+  await expect(
+    page.getByLabel("Feature V1", { exact: true }),
+  ).not.toBeVisible();
+  const pending = page.waitForResponse(
+    (r) =>
+      r.url().endsWith("/api/v1/predict") && r.request().method() === "POST",
+  );
+  await page
+    .getByRole("button", { name: "Predict transaction", exact: true })
+    .click();
+  const response = await pending;
+  expect(response.ok()).toBeTruthy();
+  expect(response.request().postDataJSON().features).toEqual(tx.features);
+  expect(response.request().postDataJSON().provenance).toBe(tx.provenance);
 });

@@ -70,7 +70,12 @@ export function TxTable({
   onSelect: (id: number) => void;
 }) {
   return items.length ? (
-    <div className="table-wrap">
+    <div
+      className="table-wrap"
+      role="region"
+      aria-label="Transaction results"
+      tabIndex={0}
+    >
       <table>
         <thead>
           <tr>
@@ -132,7 +137,7 @@ export function TxTable({
       </table>
     </div>
   ) : (
-    <Empty>No matching transactions. Import a CSV to get started.</Empty>
+    <Empty>No matching transactions. Adjust the filters or import a CSV.</Empty>
   );
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Empty, Panel } from "../ui";
-import type { Dataset, Models, Settings } from "../types";
+import type { Dataset, Settings } from "../types";
 
 export function SystemInformation({
   settings,
@@ -17,7 +17,6 @@ export function SystemInformation({
       database: string;
     } | null>(null),
     [datasets, setDatasets] = useState<Dataset[]>([]),
-    [models, setModels] = useState<Models | null>(null),
     [key, setKey] = useState(
       () => sessionStorage.getItem("argus-api-key") ?? "",
     ),
@@ -28,13 +27,11 @@ export function SystemInformation({
     Promise.all([
       api<{ status: string; database: string }>("/health"),
       api<Dataset[]>("/datasets"),
-      api<Models>("/models"),
     ])
-      .then(([h, d, m]) => {
+      .then(([h, d]) => {
         if (!cancelled) {
           setHealth(h);
           setDatasets(d);
-          setModels(m);
           setError("");
         }
       })
@@ -45,9 +42,7 @@ export function SystemInformation({
       cancelled = true;
     };
   }, [revision]);
-  const experiment = models?.experiments.find(
-    (e) => e.version === models.active_version,
-  );
+  const model = settings?.active_model;
   return (
     <>
       <div className="two-grid">
@@ -72,15 +67,12 @@ export function SystemInformation({
                 "Upload limit",
                 settings ? `${settings.max_upload_mib} MiB` : "Unavailable",
               ],
-              [
-                "Active algorithm",
-                experiment?.selected_model ?? "No active model",
-              ],
-              ["Model version", models?.active_version ?? "Untrained"],
+              ["Active algorithm", model?.name ?? "No active model"],
+              ["Model version", model?.version ?? "Untrained"],
               [
                 "Last verified evaluation",
-                experiment
-                  ? new Date(experiment.created_at).toLocaleString()
+                model?.last_evaluated_at
+                  ? new Date(model.last_evaluated_at).toLocaleString()
                   : "Not recorded",
               ],
             ].map(([label, value]) => (

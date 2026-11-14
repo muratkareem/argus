@@ -8,7 +8,7 @@ import {
   Trash2,
   RotateCcw,
 } from "lucide-react";
-import { api, send } from "../api";
+import { api, send, downloadFile } from "../api";
 import { Panel, TxTable, Loading } from "../ui";
 import type { Tx } from "../types";
 const defaults = {
@@ -54,7 +54,16 @@ export function TransactionIntelligence({
     [viewId, setViewId] = useState(""),
     [name, setName] = useState(""),
     [saving, setSaving] = useState(false),
-    [queryError, setQueryError] = useState("");
+    [queryError, setQueryError] = useState(""),
+    [exporting, setExporting] = useState(false),
+    [filtersOpen, setFiltersOpen] = useState(() =>
+      Object.entries(filtersFromLocation()).some(
+        ([k, v]) =>
+          !["q", "sort", "direction", "flagged", "provenance"].includes(k) &&
+          v !== "" &&
+          v !== "all",
+      ),
+    );
   const params = new URLSearchParams(
     Object.entries(filters).filter(([, v]) => v !== "" && v !== "all"),
   );
@@ -81,10 +90,12 @@ export function TransactionIntelligence({
     let cancelled = false;
     setQueryError("");
     setData(null);
+    const controller = new AbortController();
     const timer = setTimeout(
       () =>
         api<{ items: Tx[]; total: number }>(
           `/transactions?${key}&page=${page}&page_size=20`,
+          { signal: controller.signal },
         )
           .then((result) => {
             if (!cancelled) setData(result);
@@ -96,6 +107,7 @@ export function TransactionIntelligence({
     );
     return () => {
       cancelled = true;
+      controller.abort();
       clearTimeout(timer);
     };
   }, [key, page, revision]);
@@ -150,174 +162,201 @@ export function TransactionIntelligence({
   );
   return (
     <div className="transaction-intelligence">
-      <aside className="filter-rail">
-        <div className="rail-heading">
-          QUERY BUILDER
-          <button
-            className="icon-button"
-            aria-label="Reset transaction filters"
-            onClick={() => {
-              setFilters(defaults);
-              setPage(1);
-              setViewId("");
-            }}
-          >
-            <RotateCcw size={12} />
-          </button>
+      <details
+        className="filter-rail"
+        open={filtersOpen}
+        onToggle={(e) => setFiltersOpen(e.currentTarget.open)}
+      >
+        <summary>
+          Advanced filters & saved views{" "}
+          <span>{active.length ? `${active.length} active` : "Optional"}</span>
+        </summary>
+        <div className="filter-content">
+          <div className="rail-heading">
+            QUERY BUILDER
+            <button
+              className="icon-button"
+              aria-label="Reset transaction filters"
+              onClick={() => {
+                setFilters(defaults);
+                setPage(1);
+                setViewId("");
+              }}
+            >
+              <RotateCcw size={12} />
+            </button>
+          </div>
+          <label className="field">
+            Saved views
+            <select
+              aria-label="Saved transaction views"
+              value={viewId}
+              onChange={(e) => apply(e.target.value)}
+            >
+              <option value="">Unsaved query</option>
+              {views.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {viewId && (
+            <button className="text-button" onClick={remove}>
+              <Trash2 size={12} />
+              Delete saved view
+            </button>
+          )}
+          <div className="filter-group-label">MODEL SCORE RANGE · 0–1</div>
+          <div className="range-fields">
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step=".01"
+              aria-label="Minimum risk score"
+              placeholder="Min"
+              value={filters.min_risk}
+              onChange={(e) => set("min_risk", e.target.value)}
+            />
+            <span>—</span>
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step=".01"
+              aria-label="Maximum risk score"
+              placeholder="Max"
+              value={filters.max_risk}
+              onChange={(e) => set("max_risk", e.target.value)}
+            />
+          </div>
+          <div className="filter-group-label">AMOUNT · SOURCE UNITS</div>
+          <div className="range-fields">
+            <input
+              type="number"
+              min="0"
+              aria-label="Minimum amount"
+              placeholder="Min"
+              value={filters.min_amount}
+              onChange={(e) => set("min_amount", e.target.value)}
+            />
+            <span>—</span>
+            <input
+              type="number"
+              min="0"
+              aria-label="Maximum amount"
+              placeholder="Max"
+              value={filters.max_amount}
+              onChange={(e) => set("max_amount", e.target.value)}
+            />
+          </div>
+          <div className="filter-group-label">DATASET TIME · SECONDS</div>
+          <div className="range-fields">
+            <input
+              type="number"
+              min="0"
+              aria-label="Minimum dataset time"
+              placeholder="From"
+              value={filters.min_time}
+              onChange={(e) => set("min_time", e.target.value)}
+            />
+            <span>—</span>
+            <input
+              type="number"
+              min="0"
+              aria-label="Maximum dataset time"
+              placeholder="To"
+              value={filters.max_time}
+              onChange={(e) => set("max_time", e.target.value)}
+            />
+          </div>
+          <label className="field">
+            Observed label
+            <select
+              aria-label="Observed label filter"
+              value={filters.label}
+              onChange={(e) => set("label", e.target.value)}
+            >
+              <option value="all">All / unlabeled</option>
+              <option value="1">Observed fraud</option>
+              <option value="0">Observed legitimate</option>
+            </select>
+          </label>
+          <div className="save-view">
+            <input
+              aria-label="Saved view name"
+              placeholder="Name this query…"
+              value={name}
+              maxLength={100}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <button
+              className="secondary full"
+              disabled={!name.trim() || saving}
+              onClick={save}
+            >
+              <Save size={13} />
+              Save query configuration
+            </button>
+          </div>
+          <p className="muted">
+            Saved views are shared in this local research workspace. Scores are
+            uncalibrated.
+          </p>
         </div>
-        <label className="field">
-          Saved views
-          <select
-            aria-label="Saved transaction views"
-            value={viewId}
-            onChange={(e) => apply(e.target.value)}
-          >
-            <option value="">Unsaved query</option>
-            {views.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {viewId && (
-          <button className="text-button" onClick={remove}>
-            <Trash2 size={12} />
-            Delete saved view
-          </button>
-        )}
-        <label className="field">
-          Assessment
-          <select
-            aria-label="Assessment filter"
-            value={filters.flagged}
-            onChange={(e) => set("flagged", e.target.value)}
-          >
-            <option value="all">All assessments</option>
-            <option value="true">Flagged only</option>
-            <option value="false">Clear only</option>
-          </select>
-        </label>
-        <label className="field">
-          Data provenance
-          <select
-            aria-label="Data source filter"
-            value={filters.provenance}
-            onChange={(e) => set("provenance", e.target.value)}
-          >
-            <option value="all">All sources</option>
-            <option value="ulb">ULB benchmark</option>
-            <option value="synthetic">Synthetic</option>
-          </select>
-        </label>
-        <div className="filter-group-label">MODEL SCORE RANGE · 0–1</div>
-        <div className="range-fields">
-          <input
-            type="number"
-            min="0"
-            max="1"
-            step=".01"
-            aria-label="Minimum risk score"
-            placeholder="Min"
-            value={filters.min_risk}
-            onChange={(e) => set("min_risk", e.target.value)}
-          />
-          <span>—</span>
-          <input
-            type="number"
-            min="0"
-            max="1"
-            step=".01"
-            aria-label="Maximum risk score"
-            placeholder="Max"
-            value={filters.max_risk}
-            onChange={(e) => set("max_risk", e.target.value)}
-          />
-        </div>
-        <div className="filter-group-label">AMOUNT · SOURCE UNITS</div>
-        <div className="range-fields">
-          <input
-            type="number"
-            min="0"
-            aria-label="Minimum amount"
-            placeholder="Min"
-            value={filters.min_amount}
-            onChange={(e) => set("min_amount", e.target.value)}
-          />
-          <span>—</span>
-          <input
-            type="number"
-            min="0"
-            aria-label="Maximum amount"
-            placeholder="Max"
-            value={filters.max_amount}
-            onChange={(e) => set("max_amount", e.target.value)}
-          />
-        </div>
-        <div className="filter-group-label">DATASET TIME · SECONDS</div>
-        <div className="range-fields">
-          <input
-            type="number"
-            min="0"
-            aria-label="Minimum dataset time"
-            placeholder="From"
-            value={filters.min_time}
-            onChange={(e) => set("min_time", e.target.value)}
-          />
-          <span>—</span>
-          <input
-            type="number"
-            min="0"
-            aria-label="Maximum dataset time"
-            placeholder="To"
-            value={filters.max_time}
-            onChange={(e) => set("max_time", e.target.value)}
-          />
-        </div>
-        <label className="field">
-          Observed label
-          <select
-            aria-label="Observed label filter"
-            value={filters.label}
-            onChange={(e) => set("label", e.target.value)}
-          >
-            <option value="all">All / unlabeled</option>
-            <option value="1">Observed fraud</option>
-            <option value="0">Observed legitimate</option>
-          </select>
-        </label>
-        <div className="save-view">
-          <input
-            aria-label="Saved view name"
-            placeholder="Name this query…"
-            value={name}
-            maxLength={100}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button
-            className="secondary full"
-            disabled={!name.trim() || saving}
-            onClick={save}
-          >
-            <Save size={13} />
-            Save query configuration
-          </button>
-        </div>
-        <p className="muted">
-          Saved views are shared in this local research workspace. Scores are
-          uncalibrated.
-        </p>
-      </aside>
+      </details>
       <Panel
         title="Transaction intelligence"
         meta={
-          <a className="secondary" href={"/api/v1/transactions/export?" + key}>
+          <button
+            className="secondary"
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                await downloadFile(
+                  "/transactions/export?" + key,
+                  "argus-transactions.csv",
+                );
+              } catch (error) {
+                fail(error);
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
             <ArrowDownToLine size={13} />
-            Export filtered CSV
-          </a>
+            {exporting ? "Exporting…" : "Export filtered CSV"}
+          </button>
         }
       >
         <div className="toolbar">
+          <label className="field">
+            Assessment
+            <select
+              aria-label="Assessment filter"
+              value={filters.flagged}
+              onChange={(e) => set("flagged", e.target.value)}
+            >
+              <option value="all">All assessments</option>
+              <option value="true">Flagged only</option>
+              <option value="false">Clear only</option>
+            </select>
+          </label>
+          <label className="field">
+            Data provenance
+            <select
+              aria-label="Data source filter"
+              value={filters.provenance}
+              onChange={(e) => set("provenance", e.target.value)}
+            >
+              <option value="all">All sources</option>
+              <option value="ulb">ULB benchmark</option>
+              <option value="synthetic">Synthetic</option>
+            </select>
+          </label>
+
           <label className="search-input">
             <Search size={14} />
             <input

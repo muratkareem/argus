@@ -1,8 +1,8 @@
+import { FileSearch } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowRight,
-  FileSearch,
   Plus,
   Search,
   ShieldCheck,
@@ -329,26 +329,6 @@ export function InvestigationWorkspace({
               <Plus size={13} />
               Add note
             </button>
-            <div className="decision-compact">
-              <label className="field">
-                Analyst decision
-                <textarea
-                  disabled={busy}
-                  aria-label="Analyst decision"
-                  value={decision}
-                  maxLength={10000}
-                  onChange={(e) => setDecision(e.target.value)}
-                  placeholder="Assessment, uncertainty, and next steps…"
-                />
-              </label>
-              <button
-                className="secondary"
-                disabled={busy}
-                onClick={() => update({ decision })}
-              >
-                Save decision
-              </button>
-            </div>
           </>
         ) : (
           <>
@@ -457,12 +437,6 @@ export function InvestigationWorkspace({
   );
   return (
     <div className="investigation-workspace">
-      <div className="workspace-context">
-        <FileSearch size={14} />
-        <span>INVESTIGATION WORKBENCH</span>
-        <span className="muted">Queue → case timeline → linked evidence</span>
-        <small>Drag dividers or use ← → when focused</small>
-      </div>
       <SplitPane
         storageKey="argus-case-queue-width"
         initial={25}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Database, FlaskConical, ShieldCheck } from "lucide-react";
+import { ArrowRight, Database, ShieldCheck } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -11,9 +11,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { api, amount, percent } from "../api";
+import { api, percent } from "../api";
 import { Panel, Metric, TxTable, Empty, Loading } from "../ui";
-import type { Case, Experiment, Models, Overview } from "../types";
+import type { Case, ActiveModel, Overview } from "../types";
 const nav = (page: string) => {
   location.hash = page;
 };
@@ -26,32 +26,24 @@ const tipStyle = {
 };
 export default function OverviewPage({
   revision,
+  activeModel,
   onSelect,
   fail,
 }: {
   revision: number;
+  activeModel?: ActiveModel;
   onSelect: (id: number) => void;
   fail: (e: unknown) => void;
 }) {
   const [data, setData] = useState<Overview | null>(null),
-    [experiment, setExperiment] = useState<Experiment | null>(null),
     [recentCases, setRecentCases] = useState<Case[]>([]),
     [riskBand, setRiskBand] = useState(9);
   useEffect(() => {
     api<Overview>("/overview").then(setData).catch(fail);
     api<Case[]>("/cases").then(setRecentCases).catch(fail);
-    api<Models>("/models")
-      .then((d) =>
-        setExperiment(
-          d.experiments.find((e) => e.version === d.active_version) ?? null,
-        ),
-      )
-      .catch(fail);
   }, [revision]);
   if (!data) return <Loading />;
-  const model = experiment?.models.find(
-    (m) => m.name === experiment.selected_model,
-  );
+  const model = activeModel?.status === "ready" ? activeModel : null;
   return (
     <>
       <div className="section-kicker">
@@ -89,24 +81,14 @@ export default function OverviewPage({
           }
         />
         <Metric
-          label="TRANSACTION VOLUME"
-          value={
+          label="OBSERVED FRAUD"
+          value={data.labeled_fraud ?? "—"}
+          detail={
             <>
-              <span className="metric-unit">∑</span>
-              <span className="volume-full">{amount(data.volume)}</span>
-              <span
-                className="volume-compact"
-                title={amount(data.volume)}
-                aria-label={amount(data.volume)}
-              >
-                {new Intl.NumberFormat("en-US", {
-                  notation: "compact",
-                  maximumFractionDigits: 2,
-                }).format(data.volume)}
-              </span>
+              {data.labeled_legitimate ?? "—"} labeled legitimate ·{" "}
+              {data.unlabeled ?? "—"} unlabeled
             </>
           }
-          detail={<>Amount units · source denomination unspecified</>}
         />
         <Metric
           label="OPEN INVESTIGATIONS"
@@ -120,6 +102,56 @@ export default function OverviewPage({
             </button>
           }
         />
+      </div>
+      <div className="lower-grid">
+        <Panel
+          title="Flagged transactions"
+          meta={
+            <button className="text-button" onClick={() => nav("transactions")}>
+              View explorer <ArrowRight size={13} />
+            </button>
+          }
+        >
+          <div className="chart-subtitle">
+            Most recently imported records requiring analyst review
+          </div>
+          <TxTable
+            items={data.recent_flagged.slice(0, 5)}
+            onSelect={onSelect}
+          />
+        </Panel>
+        <Panel
+          title="Detection model"
+          meta={
+            <span className="status-dot-label">
+              {model && <span className="online-dot" />}
+              {model ? "ACTIVE" : "UNAVAILABLE"}
+            </span>
+          }
+        >
+          {model ? (
+            <div className="model-card">
+              <h3>{model.name}</h3>
+              <div className="model-stat">
+                <span>Training source</span>
+                <b>{model.provenance?.toUpperCase()}</b>
+              </div>
+              <div className="model-stat">
+                <span>Review threshold</span>
+                <b>{percent(model.threshold)}</b>
+              </div>
+              <p className="muted">
+                Class estimates are uncalibrated. Review flags alongside
+                observed labels.
+              </p>
+              <a className="secondary full" href="#laboratory">
+                Model performance <ArrowRight size={14} />
+              </a>
+            </div>
+          ) : (
+            <Empty>No active model metadata available.</Empty>
+          )}
+        </Panel>
       </div>
       <div className="chart-grid">
         <Panel
@@ -274,111 +306,49 @@ export default function OverviewPage({
           </div>
         </Panel>
       </div>
-      <div className="lower-grid">
+      {recentCases.length > 0 && (
         <Panel
-          title="Flagged transactions"
+          title="Recent investigations"
           meta={
-            <button className="text-button" onClick={() => nav("transactions")}>
-              View explorer <ArrowRight size={13} />
+            <button
+              className="text-button"
+              onClick={() => nav("investigations")}
+            >
+              Open workbench <ArrowRight size={12} />
             </button>
           }
         >
-          <div className="chart-subtitle">
-            Most recently imported records requiring analyst review
-          </div>
-          <TxTable
-            items={data.recent_flagged.slice(0, 5)}
-            onSelect={onSelect}
-          />
-        </Panel>
-        <Panel
-          title="Detection model"
-          meta={
-            <span className="status-dot-label">
-              <span className="online-dot" />
-              {model ? "ACTIVE" : "UNTRAINED"}
-            </span>
-          }
-        >
-          {model && experiment ? (
-            <div className="model-card">
-              <div className="model-icon">
-                <FlaskConical size={24} />
-              </div>
-              <h3>{model.name}</h3>
-              <p>Selected by validation average precision</p>
-              <div className="model-source">
-                {experiment.provenance.toUpperCase()} TRAINING DATA
-              </div>
-              <div className="model-stat">
-                <span>Test precision</span>
-                <b>{percent(model.test.precision)}</b>
-              </div>
-              <div className="model-stat">
-                <span>Test recall</span>
-                <b>{percent(model.test.recall)}</b>
-              </div>
-              <div className="model-stat">
-                <span>Test PR-AUC / AP</span>
-                <b className="teal">
-                  {model.test.average_precision.toFixed(3)}
-                </b>
-              </div>
-              <button
-                className="secondary full"
-                onClick={() => nav("laboratory")}
-              >
-                Open ML Laboratory <ArrowRight size={13} />
-              </button>
-              <small>
-                {experiment.provenance === "synthetic"
-                  ? "Synthetic results do not establish ULB performance."
-                  : "Held-out ULB test metrics. Live-system generalization is unverified."}
-              </small>
+          {recentCases.length ? (
+            <div className="case-watchlist">
+              {recentCases.slice(0, 4).map((c) => (
+                <a key={c.id} href={`#investigations/${c.id}`}>
+                  <span className="mono">
+                    CASE-{String(c.id).padStart(4, "0")}
+                  </span>
+                  <b>{c.title}</b>
+                  <span>
+                    <i
+                      className={
+                        "badge " +
+                        (["Critical", "High"].includes(c.priority)
+                          ? "danger"
+                          : "neutral")
+                      }
+                    >
+                      {c.priority}
+                    </i>
+                    <small>{c.status}</small>
+                  </span>
+                </a>
+              ))}
             </div>
           ) : (
-            <Empty>Train a model using the README instructions.</Empty>
+            <Empty>
+              No investigations yet. Start from a flagged transaction.
+            </Empty>
           )}
         </Panel>
-      </div>
-      <Panel
-        title="Recent investigations"
-        meta={
-          <button className="text-button" onClick={() => nav("investigations")}>
-            Open workbench <ArrowRight size={12} />
-          </button>
-        }
-      >
-        {recentCases.length ? (
-          <div className="case-watchlist">
-            {recentCases.slice(0, 4).map((c) => (
-              <a key={c.id} href={`#investigations/${c.id}`}>
-                <span className="mono">
-                  CASE-{String(c.id).padStart(4, "0")}
-                </span>
-                <b>{c.title}</b>
-                <span>
-                  <i
-                    className={
-                      "badge " +
-                      (["Critical", "High"].includes(c.priority)
-                        ? "danger"
-                        : "neutral")
-                    }
-                  >
-                    {c.priority}
-                  </i>
-                  <small>{c.status}</small>
-                </span>
-              </a>
-            ))}
-          </div>
-        ) : (
-          <Empty>
-            No investigations yet. Start from a flagged transaction.
-          </Empty>
-        )}
-      </Panel>
+      )}
       <div className="insight-bar">
         <ShieldCheck size={19} />
         <span>

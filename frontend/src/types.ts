@@ -113,7 +113,16 @@ export type Dataset = {
   duplicates: number;
   created_at: string;
 };
+export type ActiveModel = {
+  status: string;
+  name?: string | null;
+  version?: string | null;
+  provenance?: string;
+  threshold?: number;
+  last_evaluated_at?: string | null;
+};
 export type Settings = {
+  active_model?: ActiveModel;
   database: string;
   max_upload_mib: number;
   authentication: string;

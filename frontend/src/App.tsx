@@ -352,6 +352,7 @@ export default function App() {
             {page === "overview" && (
               <OverviewPage
                 revision={revision}
+                activeModel={settings?.active_model}
                 onSelect={setSelectedTx}
                 fail={fail}
               />
