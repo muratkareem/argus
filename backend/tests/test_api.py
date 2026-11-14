@@ -379,3 +379,12 @@ def test_model_readiness_and_system_information(client, settings, tmp_path):
         assert empty.get("/api/v1/health").status_code == 200
         assert empty.get("/api/v1/health").json()["model_status"] == "unavailable"
         assert empty.get("/api/v1/ready").status_code == 503
+
+
+def test_overview_observed_labels_are_separate_from_flags(client, imported, csv_content):
+    frame = pd.read_csv(io.BytesIO(csv_content))
+    overview = client.get("/api/v1/overview").json()
+    assert overview["labeled_fraud"] == int(frame.Class.sum())
+    assert overview["labeled_legitimate"] == int((frame.Class == 0).sum())
+    assert overview["unlabeled"] == 0
+    assert overview["labeled_fraud"] + overview["labeled_legitimate"] == overview["total"]

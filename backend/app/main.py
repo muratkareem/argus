@@ -552,12 +552,14 @@ def create_app(settings=None):
 
     @app.get("/api/v1/overview")
     def overview(session: Session = Depends(db)):
-        total, scored, flagged, volume = session.execute(
+        total, scored, flagged, volume, labeled_fraud, labeled_legitimate = session.execute(
             select(
                 func.count(Transaction.id),
                 func.count(Transaction.risk_score),
                 func.coalesce(func.sum(Transaction.flagged), 0),
                 func.coalesce(func.sum(Transaction.amount), 0),
+                func.coalesce(func.sum(case((Transaction.label == 1, 1), else_=0)), 0),
+                func.coalesce(func.sum(case((Transaction.label == 0, 1), else_=0)), 0),
             )
         ).one()
         fraud_count, detected = session.execute(
@@ -612,6 +614,9 @@ def create_app(settings=None):
             "volume": round(float(volume), 2),
             "fraud_detection_rate": detected / fraud_count if fraud_count else None,
             "labeled_scored_fraud": fraud_count,
+            "labeled_fraud": labeled_fraud,
+            "labeled_legitimate": labeled_legitimate,
+            "unlabeled": total - labeled_fraud - labeled_legitimate,
             "provenance_counts": provenance_counts,
             "risk_distribution": [
                 {"bucket": f"{i * 10}–{(i + 1) * 10}%", "count": counts.get(i, 0)}

@@ -778,9 +778,11 @@ function OverviewPage({
             Labeled-data detection rate: {percent(data.fraud_detection_rate)}
           </b>
           <small>
-            Computed over {data.labeled_scored_fraud} labeled fraud records with
-            stored scores. This is an operational view, separate from held-out
-            test evaluation.
+            Observed labels: {data.labeled_fraud ?? "—"} fraud,{" "}
+            {data.labeled_legitimate ?? "—"} legitimate, {data.unlabeled ?? "—"}{" "}
+            unlabeled. Computed over {data.labeled_scored_fraud} labeled fraud
+            records with stored scores. This is an operational view, separate
+            from held-out test evaluation.
           </small>
         </span>
       </div>

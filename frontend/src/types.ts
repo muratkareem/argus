@@ -96,6 +96,9 @@ export type Overview = {
   volume: number;
   fraud_detection_rate: number | null;
   labeled_scored_fraud: number;
+  labeled_fraud?: number;
+  labeled_legitimate?: number;
+  unlabeled?: number;
   provenance_counts: Record<string, number>;
   risk_distribution: { bucket: string; count: number }[];
   trend: { hour: number; count: number; flagged: number; amount: number }[];
