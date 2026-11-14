@@ -1,0 +1,68 @@
+{
+  "measured_at": "2026-11-14T13:46:54.309650+00:00",
+  "methodology": "FastAPI TestClient in-process HTTP, concurrency 1, three warmups per operation; p95 interpolated; includes JSON and validation; excludes TCP, browser and TLS; synthetic seed 995.",
+  "environment": {
+    "platform": "macOS-27.2-arm64-arm-64bit",
+    "python": "3.12.16",
+    "logical_cpu_count": 10
+  },
+  "dataset": {
+    "provenance": "synthetic",
+    "rows": 10000,
+    "seed": 995
+  },
+  "model_version": "20261114T080032855469Z-2ca1e532",
+  "results": {
+    "health": {
+      "samples": 50,
+      "p50_ms": 1.152146011008881,
+      "p95_ms": 1.2843770513427444,
+      "min_ms": 0.9942920005414635,
+      "max_ms": 1.3009579852223396
+    },
+    "prediction": {
+      "samples": 50,
+      "p50_ms": 5.04289599484764,
+      "p95_ms": 5.41887080471497,
+      "min_ms": 4.755832982482389,
+      "max_ms": 5.54329200531356
+    },
+    "transactions": {
+      "samples": 50,
+      "p50_ms": 2.00583299738355,
+      "p95_ms": 2.2256684431340545,
+      "min_ms": 1.8531660025473684,
+      "max_ms": 2.330917021026835
+    },
+    "overview": {
+      "samples": 50,
+      "p50_ms": 9.628937492379919,
+      "p95_ms": 10.195780960202683,
+      "min_ms": 9.190959011903033,
+      "max_ms": 10.299124987795949
+    },
+    "shap_on_demand": {
+      "samples": 15,
+      "p50_ms": 5.539625009987503,
+      "p95_ms": 5.723170508281328,
+      "min_ms": 5.265459010843188,
+      "max_ms": 5.730082979425788
+    },
+    "vectorized_model_1000": {
+      "samples": 20,
+      "p50_ms": 2.3919999948702753,
+      "p95_ms": 2.4308065418154,
+      "min_ms": 2.372416027355939,
+      "max_ms": 2.514207997592166
+    },
+    "batch_api_1000": {
+      "samples": 20,
+      "p50_ms": 30.843291999190114,
+      "p95_ms": 32.706553868774805,
+      "min_ms": 29.930999997304752,
+      "max_ms": 52.42562500643544
+    }
+  },
+  "process_peak_rss_mib": 267.890625,
+  "memory_note": "Process high-water RSS includes imports, setup, training when applicable, database and explanation; not idle inference RSS."
+}
