@@ -48,6 +48,11 @@ def test_training_and_inference_are_consistent_and_provenance_guarded(artifacts)
         assert (
             sum(map(sum, model["test"]["confusion_matrix"])) == report["partitions"]["test"]["rows"]
         )
+        timing = model["inference_latency"]
+        assert timing["single_p95_ms"] >= timing["single_p50_ms"] > 0
+        assert timing["batch_1000_p95_ms"] >= timing["batch_1000_ms"] > 0
+        assert timing["single_repeats"] == 20
+        assert timing["batch_repeats"] == 5
 
 
 def test_shap_explains_actual_model(artifacts):

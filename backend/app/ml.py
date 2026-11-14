@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 import platform
 import sys
 import time
@@ -222,6 +223,33 @@ def dataset_audit(frame):
     }
 
 
+def inference_latency(model, frame, repeats=20):
+    """Warm, sequential in-process timings; validation/API/network are excluded."""
+    single = frame.iloc[[0]]
+    batch = frame.iloc[np.arange(1000) % len(frame)]
+    model.predict_proba(single)
+    model.predict_proba(batch)
+    singles, batches = [], []
+    for _ in range(repeats):
+        started = time.perf_counter()
+        model.predict_proba(single)
+        singles.append((time.perf_counter() - started) * 1000)
+    for _ in range(5):
+        started = time.perf_counter()
+        model.predict_proba(batch)
+        batches.append((time.perf_counter() - started) * 1000)
+    return {
+        "single_p50_ms": float(np.percentile(singles, 50)),
+        "single_p95_ms": float(np.percentile(singles, 95)),
+        "batch_1000_ms": float(np.median(batches)),
+        "batch_1000_p95_ms": float(np.percentile(batches, 95)),
+        "measurement": "warm predict_proba; one caller; no API, validation or network overhead",
+        "single_repeats": repeats,
+        "batch_repeats": 5,
+        "batch_input": "validation rows, repeated if fewer than 1000; not independent performance data",
+    }
+
+
 def train(df, artifact_dir, provenance, split="stratified"):
     started = time.perf_counter()
     df = validate_frame(df, require_label=True)
@@ -286,15 +314,15 @@ def train(df, artifact_dir, provenance, split="stratified"):
             fitted.append((float(average_precision_score(y_val, score)), model, score))
         ap, model, scores = max(fitted, key=lambda item: item[0])
         threshold = select_threshold(y_val, scores)
-        winners.append((name, model, threshold, ap, scores))
+        winners.append((name, model, threshold, ap, scores, inference_latency(model, x_val)))
     # Select algorithm using validation only, before accessing held-out test metrics.
-    selected = max(winners, key=lambda item: item[3])[0]
+    selected = max(winners, key=lambda item: (item[3], -item[5]["single_p95_ms"]))[0]
     digest = hashlib.sha256(
         pd.util.hash_pandas_object(df, index=False).values.tobytes()
     ).hexdigest()
     version = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + "-" + digest[:8]
     reports, best_model, best_threshold = [], None, None
-    for name, model, threshold, ap, validation_scores in winners:
+    for name, model, threshold, ap, validation_scores, latency in winners:
         test_scores = model.predict_proba(df[FEATURES].iloc[test_idx])[:, 1]
         estimator = model.steps[-1][1] if hasattr(model, "steps") else model
         importance = (
@@ -307,6 +335,7 @@ def train(df, artifact_dir, provenance, split="stratified"):
                 "name": name,
                 "threshold": threshold,
                 "validation_average_precision": ap,
+                "inference_latency": latency,
                 "validation": metrics(y_val, validation_scores, threshold),
                 "validation_threshold_analysis": threshold_analysis(y_val, validation_scores, threshold),
                 "test": metrics(df.Class.iloc[test_idx], test_scores, threshold),
@@ -349,12 +378,16 @@ def train(df, artifact_dir, provenance, split="stratified"):
         },
         "selected_model": selected,
         "selection_metric": "validation_average_precision",
+        "selection_rationale": "Highest validation average precision; exact ties prefer lower warm single-prediction p95. Threshold maximizes validation F1. Illustrative costs are not a validated business policy.",
         "models": reports,
         "duration_seconds": round(time.perf_counter() - started, 3),
         "environment": {
             "python": platform.python_version(),
             "sklearn": sklearn.__version__,
             "numpy": np.__version__,
+            "operating_system": platform.platform(),
+            "machine": platform.machine(),
+            "logical_cpus": os.cpu_count(),
             **{name: package_version(name) for name in ["pandas", "xgboost", "shap", "joblib"]},
         },
         "limitations": "Uncalibrated research scores. Synthetic results are not ULB benchmark results. Anonymized features cannot explain merchant or geographic behavior.",
