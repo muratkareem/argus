@@ -243,33 +243,87 @@ def intelligence_router(db):
         kind: str | None = None,
         relation: str | None = None,
         shared_only: bool = False,
+        node_limit: int = Query(500, ge=1, le=2000),
         session: Session = Depends(db),
     ):
-        entities = list(session.scalars(select(Entity)))
-        all_edges = list(session.scalars(select(Relationship)))
-        shares = dict(
-            session.execute(
-                select(Relationship.target, func.count(Relationship.source))
-                .where(Relationship.kind == "uses")
-                .group_by(Relationship.target)
-            ).all()
-        )
-        edges = [e for e in all_edges if not relation or e.kind == relation]
-        ids = {e.id for e in entities}
+        edge_limit = 10000
+        truncated = False
+        entities_query = select(Entity)
+        edges_query = select(Relationship)
+        if relation:
+            edges_query = edges_query.where(Relationship.kind == relation)
         if root:
             require(session, Entity, root)
             ids, frontier = {root}, {root}
             for _ in range(depth):
-                adjacent = {e.target for e in edges if e.source in frontier} | {
-                    e.source for e in edges if e.target in frontier
+                if not frontier:
+                    break
+                # Expand only the requested neighborhood, bounded before ORM
+                # materialization. No full graph load on each interaction.
+                adjacent_edges = list(
+                    session.scalars(
+                        edges_query.where(
+                            or_(
+                                Relationship.source.in_(frontier), Relationship.target.in_(frontier)
+                            )
+                        )
+                        .order_by(Relationship.id)
+                        .limit(edge_limit + 1)
+                    )
+                )
+                if len(adjacent_edges) > edge_limit:
+                    truncated = True
+                    adjacent_edges = adjacent_edges[:edge_limit]
+                adjacent = {edge.source for edge in adjacent_edges} | {
+                    edge.target for edge in adjacent_edges
                 }
-                frontier = adjacent - ids
-                ids |= frontier
+                available = node_limit - len(ids)
+                new_ids = sorted(adjacent - ids)
+                if len(new_ids) > available:
+                    truncated = True
+                    new_ids = new_ids[: max(available, 0)]
+                frontier = set(new_ids)
+                ids.update(frontier)
+                if len(ids) >= node_limit:
+                    break
+            entities_query = entities_query.where(Entity.id.in_(ids))
         if shared_only:
-            shared = {id for id, count in shares.items() if count > 1}
-            ids &= shared | {e.source for e in edges if e.target in shared}
+            shared = (
+                select(Relationship.target)
+                .where(Relationship.kind == "uses")
+                .group_by(Relationship.target)
+                .having(func.count(func.distinct(Relationship.source)) > 1)
+            )
+            sources = select(Relationship.source).where(
+                Relationship.kind == "uses", Relationship.target.in_(shared)
+            )
+            entities_query = entities_query.where(
+                or_(Entity.id.in_(shared), Entity.id.in_(sources))
+            )
         if kind:
-            ids &= {e.id for e in entities if e.kind == kind}
+            entities_query = entities_query.where(Entity.kind == kind)
+        entities = list(session.scalars(entities_query.order_by(Entity.id).limit(node_limit + 1)))
+        if len(entities) > node_limit:
+            truncated = True
+            entities = entities[:node_limit]
+        ids = {entity.id for entity in entities}
+        edges = list(
+            session.scalars(
+                edges_query.where(Relationship.source.in_(ids), Relationship.target.in_(ids))
+                .order_by(Relationship.id)
+                .limit(edge_limit + 1)
+            )
+        )
+        if len(edges) > edge_limit:
+            truncated = True
+            edges = edges[:edge_limit]
+        shares = dict(
+            session.execute(
+                select(Relationship.target, func.count(func.distinct(Relationship.source)))
+                .where(Relationship.kind == "uses", Relationship.target.in_(ids))
+                .group_by(Relationship.target)
+            ).all()
+        )
         return {
             "provenance": "synthetic",
             "root": root,
@@ -284,14 +338,14 @@ def intelligence_router(db):
                     }
                 }
                 for e in entities
-                if e.id in ids
             ],
             "edges": [
                 {"data": {"id": str(e.id), "source": e.source, "target": e.target, "label": e.kind}}
                 for e in edges
-                if e.source in ids and e.target in ids
             ],
-            "total_entities": len(entities),
+            "total_entities": session.scalar(select(func.count(Entity.id))),
+            "truncated": truncated,
+            "node_limit": node_limit,
             "disclaimer": "Synthetic structure only; shared devices are an investigative cue, not a fraud determination.",
         }
 

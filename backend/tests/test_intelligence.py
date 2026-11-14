@@ -58,6 +58,42 @@ def test_global_search_and_graph_neighborhood_use_only_real_records(client, impo
     assert client.get("/api/v1/intelligence/graph?depth=9").status_code == 422
 
 
+def test_graph_limits_are_explicit_and_keep_edges_inside_returned_nodes(client):
+    with client.app.state.session_factory() as session:
+        seed_graph(session)
+    graph = client.get("/api/v1/intelligence/graph?node_limit=2").json()
+    assert graph["truncated"] is True
+    assert len(graph["nodes"]) == 2
+    assert graph["total_entities"] > 2
+    ids = {node["data"]["id"] for node in graph["nodes"]}
+    assert all(
+        edge["data"]["source"] in ids and edge["data"]["target"] in ids for edge in graph["edges"]
+    )
+    neighborhood = client.get(
+        "/api/v1/intelligence/graph?root=device-1&depth=3&node_limit=2"
+    ).json()
+    assert neighborhood["truncated"] is True
+    assert len(neighborhood["nodes"]) == 2
+    assert "device-1" in {node["data"]["id"] for node in neighborhood["nodes"]}
+    assert client.get("/api/v1/intelligence/graph?node_limit=2001").status_code == 422
+
+
+def test_shared_device_counts_distinct_accounts_and_filters_relations(client):
+    from app.db import Relationship
+
+    with client.app.state.session_factory() as session:
+        seed_graph(session)
+        session.add(Relationship(source="account-1", target="device-1", kind="uses"))
+        session.commit()
+    graph = client.get("/api/v1/intelligence/graph?root=device-1&depth=1&relation=uses").json()
+    device = next(node for node in graph["nodes"] if node["data"]["id"] == "device-1")
+    assert device["data"]["shared_accounts"] == 3
+    assert len(graph["nodes"]) == 4
+    assert all(edge["data"]["label"] == "uses" for edge in graph["edges"])
+    devices = client.get("/api/v1/intelligence/graph?shared_only=true&kind=Device").json()
+    assert [node["data"]["id"] for node in devices["nodes"]] == ["device-1"]
+
+
 def test_timeline_and_synthetic_entity_links_are_persistent_and_idempotent(
     client, imported, settings
 ):
