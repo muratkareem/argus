@@ -64,6 +64,26 @@ def test_shap_explains_actual_model(artifacts):
     # Linear and XGBoost raw SHAP output is a logit; forest output is probability.
     candidates = [raw, 1 / (1 + np.exp(-raw))]
     assert min(abs(s - result["risk_score"]) for s in candidates) < 1e-5
+    assert result["additivity_error"] < 1e-5
+    assert result["output_space"] in {"log-odds", "probability"}
+
+
+def test_shap_cache_is_bounded_and_returns_independent_results(artifacts):
+    predictor = Predictor(artifacts)
+    features = synthetic(1, seed=984)[FEATURES].iloc[0].to_dict()
+    first = predictor.explain(features, "synthetic")
+    assert first["cache_hit"] is False
+    explainer = predictor._explainer
+    first["features"][0]["contribution"] = 999
+    second = predictor.explain(features, "synthetic")
+    assert second["cache_hit"] is True
+    assert predictor._explainer is explainer
+    assert second["features"][0]["contribution"] != 999
+    for i in range(130):
+        row = dict(features, Amount=float(i))
+        predictor.explain(row, "synthetic")
+    assert len(predictor._explanations) == 128
+    assert predictor._explainer is explainer
 
 
 def test_validation_rejects_malformed_data():

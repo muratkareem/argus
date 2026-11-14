@@ -9,6 +9,8 @@ import platform
 import sys
 import tempfile
 import time
+from collections import OrderedDict
+from copy import deepcopy
 from datetime import datetime, timezone
 from importlib.metadata import version as package_version
 from pathlib import Path
@@ -433,6 +435,10 @@ class Predictor:
         self.version = None
         self._manifest_signature = None
         self._lock = RLock()
+        self._explain_lock = RLock()
+        self._explainer = None
+        self._explainer_version = None
+        self._explanations = OrderedDict()
 
     def load(self):
         with self._lock:
@@ -494,40 +500,74 @@ class Predictor:
         return bundle, scores
 
     def explain(self, features, provenance):
+        frame = validate_frame(pd.DataFrame([features]))[FEATURES]
+        bundle, scores = self.predict(frame, provenance)
+        key = (bundle["version"], provenance, tuple(frame.iloc[0]))
+        # SHAP has its own lock: expensive explanation work must not hold the
+        # activation lock used by ordinary predictions.
+        with self._explain_lock:
+            if self._explainer_version != bundle["version"]:
+                self._explainer = None
+                self._explanations.clear()
+                self._explainer_version = bundle["version"]
+            if key in self._explanations:
+                self._explanations.move_to_end(key)
+                result = deepcopy(self._explanations[key])
+                result["cache_hit"] = True
+                return result
+            result = self._explain(bundle, scores, frame)
+            self._explanations[key] = deepcopy(result)
+            if len(self._explanations) > 128:
+                self._explanations.popitem(last=False)
+            return result
+
+    def _explain(self, bundle, scores, frame):
         import shap
 
-        bundle, scores = self.predict(pd.DataFrame([features]), provenance)
         model = bundle["model"]
-        frame = pd.DataFrame([features])[FEATURES]
         if hasattr(model, "steps"):
             scaler, estimator = model.steps[0][1], model.steps[-1][1]
-            background = scaler.transform(bundle["background"])
-            explainer = shap.LinearExplainer(estimator, background)
+            if self._explainer is None:
+                background = scaler.transform(bundle["background"])
+                self._explainer = shap.LinearExplainer(estimator, background)
+            explainer = self._explainer
             values = explainer.shap_values(scaler.transform(frame))[0]
             base = float(np.asarray(explainer.expected_value).reshape(-1)[0])
+            output_space = "log-odds"
         else:
-            explainer = shap.TreeExplainer(model)
+            if self._explainer is None:
+                self._explainer = shap.TreeExplainer(model)
+            explainer = self._explainer
             result = explainer(frame)
             values = result.values[0]
             if values.ndim == 2:
                 values = values[:, 1]
             base_values = np.asarray(result.base_values[0]).reshape(-1)
             base = float(base_values[-1])
+            output_space = "probability" if isinstance(model, RandomForestClassifier) else "log-odds"
+        raw = float(base + np.sum(values))
+        reconstructed = raw if output_space == "probability" else float(
+            1 / (1 + np.exp(np.clip(-raw, -709, 709)))
+        )
         return {
             "method": "SHAP",
-            "output_space": "raw model output (log-odds for logistic/XGBoost; probability for forest)",
+            "output_space": output_space,
             "base_value": base,
             "model_version": bundle["version"],
+            "model_name": bundle.get("model_name", type(model).__name__),
             "risk_score": float(scores[0]),
+            "reconstructed_score": reconstructed,
+            "additivity_error": abs(reconstructed - float(scores[0])),
+            "cache_hit": False,
             "features": sorted(
                 [
-                    {"feature": f, "value": features[f], "contribution": float(v)}
+                    {"feature": f, "value": float(frame[f].iloc[0]), "contribution": float(v)}
                     for f, v in zip(FEATURES, values)
                 ],
                 key=lambda x: abs(x["contribution"]),
                 reverse=True,
             ),
-            "caveat": "V1–V28 are anonymized; no merchant, location, or behavioral meaning is inferred.",
+            "caveat": "Contributions describe model associations, not causes. V1–V28 are anonymized; no merchant, location, or behavioral meaning is inferred. Probability-space forest contributions explain an uncalibrated score.",
         }
 
 
