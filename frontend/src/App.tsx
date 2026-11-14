@@ -1,3 +1,4 @@
+import { ModelDiagnostics } from "./pages/ModelDiagnostics";
 import { PredictionForm } from "./pages/PredictionForm";
 import { GraphIntelligence } from "./pages/GraphIntelligence";
 import { InvestigationWorkspace } from "./pages/InvestigationWorkspace";
@@ -1449,6 +1450,7 @@ function Laboratory({
           </div>
         </Panel>
       </div>
+      <ModelDiagnostics key={`${version}-${model.name}`} model={model} />
       <div className="two-grid">
         <Panel title="Global feature importance">
           <div className="padded">

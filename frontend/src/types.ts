@@ -30,6 +30,13 @@ export type Metrics = {
   average_precision: number;
   roc_auc: number;
   false_positive_rate: number;
+  false_negative_rate?: number;
+  brier_score?: number;
+  roc_curve?: { false_positive_rate: number; true_positive_rate: number }[];
+  calibration_curve?: {
+    mean_predicted_probability: number;
+    fraction_positive: number;
+  }[];
   confusion_matrix: number[][];
   pr_curve: { recall: number; precision: number }[];
 };
@@ -39,6 +46,30 @@ export type Model = {
   validation_average_precision: number;
   test: Metrics;
   feature_importance: { feature: string; importance: number }[];
+  inference_latency?: {
+    single_p50_ms: number;
+    single_p95_ms: number;
+    batch_1000_ms: number;
+    measurement: string;
+    repeats: number;
+  };
+  validation_threshold_analysis?: {
+    partition: string;
+    cost_assumptions: {
+      unit: string;
+      false_positive: number;
+      false_negative: number;
+    };
+    points: {
+      threshold: number;
+      precision: number;
+      recall: number;
+      f1: number;
+      false_positives: number;
+      false_negatives: number;
+      estimated_cost: number;
+    }[];
+  };
 };
 export type Experiment = {
   version: string;
