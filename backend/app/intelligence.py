@@ -21,10 +21,10 @@ from app.db import (
 
 class AdvancedFilters(BaseModel):
     max_risk: float | None = Field(None, ge=0, le=1)
-    min_amount: float | None = Field(None, ge=0)
-    max_amount: float | None = Field(None, ge=0)
-    min_time: float | None = Field(None, ge=0)
-    max_time: float | None = Field(None, ge=0)
+    min_amount: float | None = Field(None, ge=0, allow_inf_nan=False)
+    max_amount: float | None = Field(None, ge=0, allow_inf_nan=False)
+    min_time: float | None = Field(None, ge=0, allow_inf_nan=False)
+    max_time: float | None = Field(None, ge=0, allow_inf_nan=False)
     label: int | None = Field(None, ge=0, le=1)
     dataset_id: int | None = Field(None, gt=0)
 
@@ -40,11 +40,13 @@ class FilterConfiguration(AdvancedFilters):
 
 
 class ViewCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     name: str = Field(min_length=1, max_length=100)
     filters: FilterConfiguration
 
 
 class EntityLink(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     entity_id: str = Field(min_length=1, max_length=80)
 
 
@@ -125,13 +127,17 @@ def intelligence_router(db):
 
     @router.get("/search")
     def search(q: str = Query(..., min_length=1, max_length=120), session: Session = Depends(db)):
-        pattern = f"%{q.strip()}%"
+        q = q.strip()
+        if not q:
+            raise HTTPException(422, "Search text must not be blank")
+        escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
         token = q.upper().removeprefix("TX-").removeprefix("CASE-").lstrip("#")
         numeric = int(token) if token.isdigit() and len(token) <= 10 else -1
         rows = session.execute(
             select(Transaction.id, Transaction.risk_score, Dataset.provenance)
             .join(Dataset)
-            .where(or_(Transaction.id == numeric, Dataset.name.ilike(pattern)))
+            .where(or_(Transaction.id == numeric, Dataset.name.ilike(pattern, escape="\\")))
             .order_by(Transaction.id.desc())
             .limit(8)
         )
@@ -155,7 +161,7 @@ def intelligence_router(db):
             }
             for c in session.scalars(
                 select(Case)
-                .where(or_(Case.title.ilike(pattern), Case.id == numeric))
+                .where(or_(Case.title.ilike(pattern, escape="\\"), Case.id == numeric))
                 .order_by(Case.id.desc())
                 .limit(8)
             )
@@ -164,17 +170,28 @@ def intelligence_router(db):
             {"kind": "Entity", "id": e.id, "label": e.label, "detail": f"Synthetic {e.kind}"}
             for e in session.scalars(
                 select(Entity)
-                .where(or_(Entity.id.ilike(pattern), Entity.label.ilike(pattern)))
+                .where(
+                    or_(
+                        Entity.id.ilike(pattern, escape="\\"),
+                        Entity.label.ilike(pattern, escape="\\"),
+                    )
+                )
                 .limit(8)
             )
         ]
         return {"query": q, "results": results}
 
     @router.get("/views")
-    def views(session: Session = Depends(db)):
+    def views(
+        limit: int = Query(100, ge=1, le=500),
+        offset: int = Query(0, ge=0),
+        session: Session = Depends(db),
+    ):
         return [
             {"id": v.id, "name": v.name, "filters": v.filters}
-            for v in session.scalars(select(SavedView).order_by(SavedView.id.desc()))
+            for v in session.scalars(
+                select(SavedView).order_by(SavedView.id.desc()).offset(offset).limit(limit)
+            )
         ]
 
     @router.post("/views", status_code=201)

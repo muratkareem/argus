@@ -35,12 +35,36 @@ def test_saved_views_persist_and_validate(client, settings):
         ).status_code
         == 422
     )
+
     assert (
         client.post(
             "/api/v1/views", json={"name": "Bad", "filters": {"min_amount": 4, "max_amount": 1}}
         ).status_code
         == 422
     )
+
+
+def test_search_treats_wildcards_as_literal_text_and_rejects_blank_queries(client):
+    client.post("/api/v1/cases", json={"title": "100% evidence_under_review"})
+    client.post("/api/v1/cases", json={"title": "100x evidenceXunderXreview"})
+    for query in ["%", "_under_"]:
+        results = client.get("/api/v1/search", params={"q": query}).json()["results"]
+        assert len(results) == 1
+        assert results[0]["label"] == "100% evidence_under_review"
+    assert client.get("/api/v1/search", params={"q": "   "}).status_code == 422
+    assert client.get("/api/v1/search", params={"q": "' OR 1=1 --"}).json()["results"] == []
+
+
+def test_saved_view_pagination_and_nonfinite_filter_validation(client):
+    for name in ["First", "Second"]:
+        assert client.post("/api/v1/views", json={"name": name, "filters": {}}).status_code == 201
+    assert [view["name"] for view in client.get("/api/v1/views?limit=1&offset=1").json()] == [
+        "First"
+    ]
+    assert client.get("/api/v1/views?limit=501").status_code == 422
+    assert client.post("/api/v1/views", json={"name": "   ", "filters": {}}).status_code == 422
+    for key in ["min_amount", "max_amount", "min_time", "max_time"]:
+        assert client.get("/api/v1/transactions", params={key: "inf"}).status_code == 422
 
 
 def test_global_search_and_graph_neighborhood_use_only_real_records(client, imported):
