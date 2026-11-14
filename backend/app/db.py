@@ -6,11 +6,15 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     create_engine,
     event,
+    inspect,
+    select,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -38,6 +42,7 @@ class Dataset(Base):
     provenance = Column(String(30), nullable=False)
     rows = Column(Integer, nullable=False)
     duplicates = Column(Integer, nullable=False, default=0)
+    audit = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), default=now)
 
 
@@ -108,6 +113,7 @@ def connect(url):
         **options,
     )
     if sqlite:
+
         @event.listens_for(engine, "connect")
         def configure_sqlite(connection, _record):
             cursor = connection.cursor()
@@ -119,6 +125,7 @@ def connect(url):
                 cursor.execute("PRAGMA journal_mode=WAL")
             finally:
                 cursor.close()
+
     return engine, sessionmaker(bind=engine, expire_on_commit=False)
 
 
@@ -143,3 +150,52 @@ class CaseEntity(Base):
     __tablename__ = "case_entities"
     case_id = Column(ForeignKey("cases.id"), primary_key=True)
     entity_id = Column(ForeignKey("entities.id"), primary_key=True)
+
+
+class SchemaMigration(Base):
+    __tablename__ = "schema_migrations"
+    version = Column(Integer, primary_key=True)
+    applied_at = Column(DateTime(timezone=True), default=now, nullable=False)
+
+
+# Match common filtering and deterministic pagination rather than indexing JSON.
+Index("ix_datasets_provenance_id", Dataset.provenance, Dataset.id)
+Index("ix_transactions_amount_id", Transaction.amount, Transaction.id)
+Index("ix_transactions_time_id", Transaction.time, Transaction.id)
+Index(
+    "ix_transactions_flagged_risk_id",
+    Transaction.flagged,
+    Transaction.risk_score.desc(),
+    Transaction.id,
+)
+Index(
+    "ix_transactions_dataset_risk_id",
+    Transaction.dataset_id,
+    Transaction.risk_score.desc(),
+    Transaction.id,
+)
+Index("ix_relationships_source", Relationship.source)
+Index("ix_relationships_target", Relationship.target)
+Index("ix_case_entities_entity_case", CaseEntity.entity_id, CaseEntity.case_id)
+
+
+def migrate(engine):
+    """Idempotent additive migrations for existing SQLite/PostgreSQL workspaces.
+
+    Existing records and model files remain intact. Run one migration process
+    before starting application workers; table creation alone cannot add columns
+    or indexes to tables that already exist.
+    """
+    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        applied = set(connection.scalars(select(SchemaMigration.version)))
+        if 1 not in applied:
+            columns = {column["name"] for column in inspect(connection).get_columns("datasets")}
+            if "audit" not in columns:
+                connection.execute(text("ALTER TABLE datasets ADD COLUMN audit JSON"))
+            connection.execute(SchemaMigration.__table__.insert().values(version=1))
+        if 2 not in applied:
+            for table in Base.metadata.sorted_tables:
+                for index in table.indexes:
+                    index.create(connection, checkfirst=True)
+            connection.execute(SchemaMigration.__table__.insert().values(version=2))
