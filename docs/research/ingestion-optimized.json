@@ -1,0 +1,30 @@
+{
+  "label": "optimized",
+  "created_at": "2026-11-14T08:01:28.457904+00:00",
+  "environment": {
+    "platform": "macOS-27.2-arm64-arm-64bit",
+    "python": "3.12.16",
+    "processor": "arm"
+  },
+  "methodology": "One trial per size; cold fresh SQLite WAL database; synthetic seed 2026; deterministic fake vector scores; tracemalloc Python allocation peak; CSV fixture generation excluded; concurrency 1. Tracing adds overhead and this is not HTTP/model throughput.",
+  "measurements": [
+    {
+      "rows": 12000,
+      "csv_sha256": "bf357a809eb81d5b977e30052621ed2d2676da827bcdbb99d5c568df008084b2",
+      "imported": 12000,
+      "elapsed_seconds": 3.25489,
+      "rows_per_second": 3686.76,
+      "peak_traced_allocations_mib": 12.554,
+      "sql_statements": 32
+    },
+    {
+      "rows": 60000,
+      "csv_sha256": "5286bcf7d6863f90976507f98961d11f4d5a42b4bcbf7a4a537e921c9c894757",
+      "imported": 60000,
+      "elapsed_seconds": 15.067727,
+      "rows_per_second": 3982.021,
+      "peak_traced_allocations_mib": 55.947,
+      "sql_statements": 152
+    }
+  ]
+}
