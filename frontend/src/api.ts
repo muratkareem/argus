@@ -1,13 +1,10 @@
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch("/api/v1" + path, {
-    ...init,
-    headers: {
-      ...(init?.body instanceof FormData
-        ? {}
-        : { "Content-Type": "application/json" }),
-      ...init?.headers,
-    },
-  });
+  const headers = new Headers(init?.headers);
+  if (!(init?.body instanceof FormData) && !headers.has("Content-Type"))
+    headers.set("Content-Type", "application/json");
+  const key = sessionStorage.getItem("argus-api-key");
+  if (key) headers.set("Authorization", `Bearer ${key}`);
+  const response = await fetch("/api/v1" + path, { ...init, headers });
   if (!response.ok) {
     const body = await response
       .json()

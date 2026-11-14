@@ -1,3 +1,4 @@
+import { SystemInformation } from "./pages/SystemInformation";
 import { ModelDiagnostics } from "./pages/ModelDiagnostics";
 import { PredictionForm } from "./pages/PredictionForm";
 import { GraphIntelligence } from "./pages/GraphIntelligence";
@@ -94,7 +95,7 @@ export default function App() {
     api<Settings>("/settings")
       .then(setSettings)
       .catch((e) => setError(e.message));
-  }, []);
+  }, [revision]);
   useEffect(() => {
     if (notice) {
       const id = setTimeout(() => setNotice(""), 7000);
@@ -350,7 +351,16 @@ export default function App() {
           {page === "graph" && (
             <GraphIntelligence fail={fail} notify={setNotice} />
           )}
-          {page === "settings" && <SettingsPage settings={settings} />}
+          {page === "settings" && (
+            <SystemInformation
+              settings={settings}
+              revision={revision}
+              reconnect={() => {
+                setError("");
+                refresh();
+              }}
+            />
+          )}
           {!pages.some((p) => p[0] === page) && (
             <Empty>
               Unknown page. <a href="#overview">Return to overview</a>.
@@ -1502,58 +1512,5 @@ function Laboratory({
         </Panel>
       </div>
     </>
-  );
-}
-
-function SettingsPage({ settings }: { settings: Settings | null }) {
-  return settings ? (
-    <div className="two-grid">
-      <Panel title="Environment">
-        <div className="padded">
-          {[
-            ["Database", settings.database],
-            ["Authentication", settings.authentication],
-            ["Upload limit", `${settings.max_upload_mib} MiB`],
-          ].map(([k, v]) => (
-            <div className="detail-row" key={k}>
-              <span>{k}</span>
-              <b>{v}</b>
-            </div>
-          ))}
-          <p className="muted">
-            Configuration comes from environment variables or a local .env file.
-            Restart the backend after changing configuration.
-          </p>
-        </div>
-      </Panel>
-      <Panel title="Research boundaries">
-        <div className="padded">
-          <h3>Educational prototype</h3>
-          <p>
-            No authentication, bank integrations, or compliance certification.
-            Keep the application on your own computer or a trusted private
-            network.
-          </p>
-          <p>
-            ULB uses anonymized features. Synthetic data contains artificial
-            patterns and is never presented as benchmark evidence.
-          </p>
-          <p>
-            Model scores are uncalibrated. An alert is a request for analyst
-            review, not proof of fraud.
-          </p>
-          <a
-            className="secondary"
-            href="http://127.0.0.1:8000/docs"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open API documentation <ArrowRight size={14} />
-          </a>
-        </div>
-      </Panel>
-    </div>
-  ) : (
-    <Loading />
   );
 }
