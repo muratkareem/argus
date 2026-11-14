@@ -1,3 +1,7 @@
+# UI redesign handoff
+
+The requested redesign is implemented and locally verified; do not repeat it. See docs/UI_REDESIGN.md and docs/screenshots/README.md for current behavior and before/after evidence.33 new full-page desktop/mobile images preserve the39-image baseline. Focus future work on user feedback, upstream development-tool advisories and the already documented research limitations. Current temporary capture helpers: .local/capture-redesign.mjs and .local/redesign-extras.mjs. Main publication and GitHub Actions are verified after the final commit. Historical follow-up follows.
+
 # Post-delivery follow-up
 
 Publication to main is explicitly authorized for the current delivery. Local final checks and real-data workflows passed; see docs/FINAL_DELIVERY.md. No dataset download or full ML experiment repetition is needed. Remaining work is research expansion and seven moderate development-tool advisories, not a core demonstration blocker.

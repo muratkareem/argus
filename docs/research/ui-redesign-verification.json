@@ -1,0 +1,38 @@
+{
+  "verified_at": "2026-11-14T19:04:48.994485+00:00",
+  "baseline_commit": "de65ba0",
+  "backend_sqlite_passed": 78,
+  "frontend_tests_passed": 16,
+  "browser_workflows_passed": 15,
+  "browser_duration_seconds": 17.4,
+  "checks": [
+    "ESLint",
+    "TypeScript",
+    "Ruff lint/format",
+    "production Vite build",
+    "isolated Docker Compose startup",
+    "frontend proxy/API/PostgreSQL health",
+    "API docs and OpenAPI proxy",
+    "33 real full-page PNGs validated"
+  ],
+  "route_loading": {
+    "transaction_route_charts_requested": false,
+    "transaction_route_graph_requested": false,
+    "overview_models_report_requests": 0,
+    "settings_models_report_requests": 0
+  },
+  "baseline_rounded_vite_kb": {
+    "entry_js": 287.1,
+    "entry_js_gzip": 87.73,
+    "css": 48.02,
+    "css_gzip": 11.48
+  },
+  "final_assets": {
+    "entry_js_bytes": 239667,
+    "entry_js_gzip_bytes": 75395,
+    "css_bytes": 58545,
+    "css_gzip_bytes": 13492
+  },
+  "performance_limits": "Build sizes and one Chrome route-loading audit, not a statistical page-latency benchmark. CSS grows with readable controls; heavy charts and graph remain deferred. Backend/ML behavior unchanged; no ULB retraining/download.",
+  "screenshots": 33
+}

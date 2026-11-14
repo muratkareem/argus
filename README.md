@@ -12,7 +12,7 @@ metrics, and document investigations in a persistent database.
 > Model scores are uncalibrated. No banking-grade security, compliance, or
 > production fraud-prevention claim is made.
 
-![Actual ARGUS workspace with ULB benchmark and labeled synthetic records](docs/screenshots/overview.png)
+![ARGUS review workspace showing stored ULB transactions](docs/screenshots/after-dashboard-ulb-desktop.png)
 
 ## What works
 
@@ -289,3 +289,7 @@ it contains no proprietary Palantir branding, assets or code.
 Start with [diploma documentation](docs/diploma/01_PROJECT_OVERVIEW.md), [current checkpoint](PROGRESS.md), and [continuation checklist](NEXT_STEPS.md). Current measured results, limitations and requirement status are in docs/diploma/05_EXPERIMENTAL_RESULTS.md and docs/diploma/10_REQUIREMENTS_TRACEABILITY.md. The optional shared API key is configured with ARGUS_API_KEY; it is entered through System Information.
 
 Dataset research reports contain information from the Worldline/ULB [Credit Card Fraud Detection database](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud), licensed under [ODbL v1.0](https://opendatacommons.org/licenses/odbl/1-0/), with [DbCL v1.0](https://opendatacommons.org/licenses/dbcl/1-0/) contents. See [license review and attribution](docs/DATASET_LICENSE.md). No raw dataset or trained model binary is redistributed.
+
+## Simplified review workspace
+
+Overview → Transactions → Fraud Detection → Explanation → Investigation. Model evaluation and the explicitly synthetic relationship demonstration remain under Research. The responsive interface uses progressive feature entry, grouped SHAP contributions and separate evaluation views. [Before/after screenshot gallery](docs/screenshots/README.md) · [Redesign decisions and verification](docs/UI_REDESIGN.md).
