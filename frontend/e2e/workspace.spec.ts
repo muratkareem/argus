@@ -553,3 +553,21 @@ test("a stored transaction flows into prediction without reentering its feature 
   expect(response.request().postDataJSON().features).toEqual(tx.features);
   expect(response.request().postDataJSON().provenance).toBe(tx.provenance);
 });
+
+test("mobile model comparison remains keyboard-scrollable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#laboratory");
+  const table = page.getByRole("region", { name: "Model comparison results" });
+  await table.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect
+    .poll(() => table.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+});

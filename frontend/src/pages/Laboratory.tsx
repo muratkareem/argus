@@ -99,7 +99,12 @@ export default function Laboratory({
           </span>
         }
       >
-        <div className="table-wrap">
+        <div
+          className="table-wrap"
+          role="region"
+          aria-label="Model comparison results"
+          tabIndex={0}
+        >
           <table>
             <thead>
               <tr>

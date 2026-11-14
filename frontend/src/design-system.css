@@ -147,29 +147,6 @@
     width: 100%;
   }
 }
-.workspace-context {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 8px;
-  letter-spacing: 1px;
-  color: #91b2c4;
-  border: 1px solid #2e4353;
-  background: #132330;
-  padding: 11px 13px;
-  margin-bottom: 12px;
-}
-.workspace-context > .muted {
-  font-size: 9px;
-  letter-spacing: 0;
-  color: #69899e;
-}
-.workspace-context > small {
-  margin-left: auto;
-  font-size: 8px;
-  letter-spacing: 0;
-  color: #638197;
-}
 .split-pane {
   display: grid;
   width: 100%;
@@ -394,11 +371,6 @@
   background: #142838;
   color: #adc7d6;
 }
-.decision-compact {
-  border-top: 1px solid #2d4457;
-  margin-top: 25px;
-  padding-top: 20px;
-}
 .evidence-inspector {
   padding: 12px;
   overflow: auto;
@@ -504,9 +476,6 @@
   .investigation-workspace .case-work-body {
     max-height: 560px;
   }
-  .workspace-context > small {
-    display: none;
-  }
   .evidence-inspector {
     max-height: none;
   }
@@ -538,12 +507,6 @@
   }
   .case-queue {
     max-height: 270px;
-  }
-  .workspace-context {
-    font-size: 7px;
-  }
-  .workspace-context > .muted {
-    display: none;
   }
   .investigation-workspace .case-work-body {
     max-height: none;
