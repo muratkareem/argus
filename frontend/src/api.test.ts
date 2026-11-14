@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "./api";
+import { api, downloadFile } from "./api";
 afterEach(() => {
   sessionStorage.clear();
   vi.unstubAllGlobals();
@@ -34,4 +34,39 @@ describe("API connection", () => {
     expect(new Headers(init.headers).has("Content-Type")).toBe(false);
     expect(new Headers(init.headers).has("Authorization")).toBe(false);
   });
+});
+
+it("exports CSV with the same API credential and releases its temporary URL", async () => {
+  sessionStorage.setItem("argus-api-key", "test-key");
+  const fetch = vi.fn(
+    async () =>
+      new Response("id,amount\n1,42\n", {
+        headers: { "Content-Type": "text/csv" },
+      }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  const create = vi.fn((blob: Blob) =>
+      blob instanceof Blob ? "blob:test-export" : "invalid",
+    ),
+    revoke = vi.fn();
+  vi.stubGlobal(
+    "URL",
+    class extends URL {
+      static createObjectURL = create;
+      static revokeObjectURL = revoke;
+    },
+  );
+  const click = vi
+    .spyOn(HTMLAnchorElement.prototype, "click")
+    .mockImplementation(() => {});
+  await downloadFile("/transactions/export?min_amount=20", "filtered.csv");
+  expect(
+    new Headers(
+      (fetch.mock.calls[0] as unknown as [string, RequestInit])[1].headers,
+    ).get("Authorization"),
+  ).toBe("Bearer test-key");
+  expect(create.mock.calls[0][0]).toBeInstanceOf(Blob);
+  expect(revoke).toHaveBeenCalledWith("blob:test-export");
+  expect(click).toHaveBeenCalledOnce();
+  click.mockRestore();
 });

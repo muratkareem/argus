@@ -1,4 +1,4 @@
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+async function request(path: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
   if (!(init?.body instanceof FormData) && !headers.has("Content-Type"))
     headers.set("Content-Type", "application/json");
@@ -15,7 +15,19 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
         : JSON.stringify(body.detail),
     );
   }
-  return response.json();
+  return response;
+}
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  return (await request(path, init)).json();
+}
+export async function downloadFile(path: string, name: string): Promise<void> {
+  const response = await request(path);
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 export const send = (method: string, body: unknown): RequestInit => ({
   method,
