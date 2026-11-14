@@ -157,6 +157,47 @@ def metrics(y, scores, threshold):
     }
 
 
+def select_threshold(y, scores):
+    """Maximize validation F1; stable ties choose the lower threshold (higher recall)."""
+    precision, recall, thresholds = precision_recall_curve(y, scores)
+    f1 = 2 * precision[:-1] * recall[:-1] / np.maximum(
+        precision[:-1] + recall[:-1], 1e-12
+    )
+    return float(thresholds[int(np.argmax(f1))])
+
+
+def threshold_analysis(y, scores, selected_threshold, false_positive_cost=1.0, false_negative_cost=25.0):
+    """Illustrative costs in arbitrary units, computed on validation data only."""
+    costs = np.asarray([false_positive_cost, false_negative_cost], dtype=float)
+    if not np.isfinite(costs).all() or (costs < 0).any():
+        raise ValueError("Classification costs must be finite and nonnegative")
+    rows = []
+    for threshold in np.unique(np.r_[np.linspace(0, 1, 21), selected_threshold]):
+        predicted = np.asarray(scores) >= threshold
+        tn, fp, fn, tp = confusion_matrix(y, predicted, labels=[0, 1]).ravel()
+        rows.append({
+            "threshold": float(threshold),
+            "precision": float(tp / max(tp + fp, 1)),
+            "recall": float(tp / max(tp + fn, 1)),
+            "f1": float(2 * tp / max(2 * tp + fp + fn, 1)),
+            "false_positives": int(fp),
+            "false_negatives": int(fn),
+            "estimated_cost": float(fp * false_positive_cost + fn * false_negative_cost),
+        })
+    return {
+        "partition": "validation",
+        "selection_objective": "maximum F1; cost illustration does not select the threshold",
+        "cost_assumptions": {
+            "unit": "arbitrary illustrative units; not monetary savings",
+            "false_positive": float(false_positive_cost),
+            "false_negative": float(false_negative_cost),
+            "true_positive": 0,
+            "true_negative": 0,
+        },
+        "points": rows,
+    }
+
+
 def train(df, artifact_dir, provenance, split="stratified"):
     started = time.perf_counter()
     df = validate_frame(df, require_label=True)
@@ -220,10 +261,8 @@ def train(df, artifact_dir, provenance, split="stratified"):
             score = model.predict_proba(x_val)[:, 1]
             fitted.append((float(average_precision_score(y_val, score)), model, score))
         ap, model, scores = max(fitted, key=lambda item: item[0])
-        p, r, thresholds = precision_recall_curve(y_val, scores)
-        f1 = 2 * p[:-1] * r[:-1] / np.maximum(p[:-1] + r[:-1], 1e-12)
-        threshold = float(thresholds[int(np.argmax(f1))])
-        winners.append((name, model, threshold, ap))
+        threshold = select_threshold(y_val, scores)
+        winners.append((name, model, threshold, ap, scores))
     # Select algorithm using validation only, before accessing held-out test metrics.
     selected = max(winners, key=lambda item: item[3])[0]
     digest = hashlib.sha256(
@@ -231,7 +270,7 @@ def train(df, artifact_dir, provenance, split="stratified"):
     ).hexdigest()
     version = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + "-" + digest[:8]
     reports, best_model, best_threshold = [], None, None
-    for name, model, threshold, ap in winners:
+    for name, model, threshold, ap, validation_scores in winners:
         test_scores = model.predict_proba(df[FEATURES].iloc[test_idx])[:, 1]
         estimator = model.steps[-1][1] if hasattr(model, "steps") else model
         importance = (
@@ -244,6 +283,8 @@ def train(df, artifact_dir, provenance, split="stratified"):
                 "name": name,
                 "threshold": threshold,
                 "validation_average_precision": ap,
+                "validation": metrics(y_val, validation_scores, threshold),
+                "validation_threshold_analysis": threshold_analysis(y_val, validation_scores, threshold),
                 "test": metrics(df.Class.iloc[test_idx], test_scores, threshold),
                 "parameters": {
                     k: (None if isinstance(v, float) and not np.isfinite(v) else v)

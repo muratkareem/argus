@@ -3,7 +3,17 @@ import json
 import numpy as np
 import pandas as pd
 import pytest
-from app.ml import FEATURES, Predictor, metrics, partition_indices, synthetic, train, validate_frame
+from app.ml import (
+    FEATURES,
+    Predictor,
+    metrics,
+    partition_indices,
+    select_threshold,
+    synthetic,
+    threshold_analysis,
+    train,
+    validate_frame,
+)
 
 
 def test_training_and_inference_are_consistent_and_provenance_guarded(artifacts):
@@ -126,6 +136,27 @@ def test_metrics_reject_invalid_threshold(threshold):
 def test_metrics_reject_invalid_scores(scores):
     with pytest.raises(ValueError, match="Scores"):
         metrics([0, 1], scores, 0.5)
+
+
+def test_threshold_selection_and_cost_tradeoff_use_validation_scores():
+    labels, scores = [0, 0, 1, 1], np.array([0.1, 0.7, 0.6, 0.9])
+    selected = select_threshold(labels, scores)
+    assert selected == 0.6
+    analysis = threshold_analysis(labels, scores, selected, 2, 10)
+    assert analysis["partition"] == "validation"
+    chosen = next(p for p in analysis["points"] if p["threshold"] == selected)
+    assert chosen["false_positives"] == 1
+    assert chosen["false_negatives"] == 0
+    assert chosen["estimated_cost"] == 2
+    assert analysis["points"][0]["recall"] == 1
+    assert analysis["points"][-1]["recall"] == 0
+    assert all(
+        left["false_positives"] >= right["false_positives"]
+        and left["false_negatives"] <= right["false_negatives"]
+        for left, right in zip(analysis["points"], analysis["points"][1:])
+    )
+    with pytest.raises(ValueError, match="costs"):
+        threshold_analysis(labels, scores, selected, false_negative_cost=-1)
 
 
 @pytest.mark.parametrize("kind", ["linear", "forest", "xgboost"])
