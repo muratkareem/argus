@@ -1,0 +1,68 @@
+{
+  "measured_at": "2026-11-14T13:50:44.586827+00:00",
+  "methodology": "FastAPI TestClient in-process HTTP, concurrency 1, three warmups per operation; p95 interpolated; includes JSON and validation; excludes TCP, browser and TLS; synthetic seed 995.",
+  "environment": {
+    "platform": "macOS-27.2-arm64-arm-64bit",
+    "python": "3.12.16",
+    "logical_cpu_count": 10
+  },
+  "dataset": {
+    "provenance": "synthetic",
+    "rows": 10000,
+    "seed": 995
+  },
+  "model_version": "20261114T080032855469Z-2ca1e532",
+  "results": {
+    "health": {
+      "samples": 50,
+      "p50_ms": 1.8034169916063547,
+      "p95_ms": 2.92493110318901,
+      "min_ms": 1.2497080024331808,
+      "max_ms": 3.150749980704859
+    },
+    "prediction": {
+      "samples": 50,
+      "p50_ms": 8.728083004825749,
+      "p95_ms": 13.088795491785271,
+      "min_ms": 5.580416996963322,
+      "max_ms": 16.266834019916132
+    },
+    "transactions": {
+      "samples": 50,
+      "p50_ms": 4.446687496965751,
+      "p95_ms": 6.712708160921466,
+      "min_ms": 3.0149999947752804,
+      "max_ms": 6.815500004449859
+    },
+    "overview": {
+      "samples": 50,
+      "p50_ms": 17.134312001871876,
+      "p95_ms": 29.250510760175526,
+      "min_ms": 12.171583017334342,
+      "max_ms": 44.156459014629945
+    },
+    "shap_on_demand": {
+      "samples": 15,
+      "p50_ms": 10.703167004976422,
+      "p95_ms": 15.564599909703244,
+      "min_ms": 8.192540990421548,
+      "max_ms": 17.33495798544027
+    },
+    "vectorized_model_1000": {
+      "samples": 20,
+      "p50_ms": 3.6970414948882535,
+      "p95_ms": 5.057833649334498,
+      "min_ms": 2.8059159812983125,
+      "max_ms": 5.362625000998378
+    },
+    "batch_api_1000": {
+      "samples": 20,
+      "p50_ms": 35.81181200570427,
+      "p95_ms": 60.39528269611767,
+      "min_ms": 33.91416699741967,
+      "max_ms": 86.80749998893589
+    }
+  },
+  "process_peak_rss_mib": 249.953125,
+  "memory_note": "Process high-water RSS includes imports, setup, training when applicable, database and explanation; not idle inference RSS."
+}

@@ -1,0 +1,31 @@
+{
+  "frontend_status": 200,
+  "health": {
+    "status": "ok",
+    "database": "postgresql",
+    "research_prototype": true,
+    "model_status": "ready"
+  },
+  "transactions": 600,
+  "scored": 600,
+  "readiness": {
+    "status": "ready",
+    "model": {
+      "status": "ready",
+      "name": "Logistic Regression",
+      "version": "20261114T134901625680Z-2ca1e532",
+      "provenance": "synthetic",
+      "threshold": 0.8907151278665961,
+      "last_evaluated_at": "2026-11-14T13:49:01.695588+00:00",
+      "probability_type": "uncalibrated model class probability"
+    }
+  },
+  "observed_fraud": 33,
+  "observed_legitimate": 567,
+  "ports": [
+    18000,
+    18080
+  ],
+  "project": "argus-diploma",
+  "note": "Final isolated Docker Compose arm64 build; no user database modified"
+}

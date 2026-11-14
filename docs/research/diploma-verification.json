@@ -1,0 +1,43 @@
+{
+  "verified_at": "2026-11-14T13:52:39.639907+00:00",
+  "backend_sqlite": {
+    "passed": 78,
+    "seconds": 5.36
+  },
+  "backend_postgresql": {
+    "passed": 78,
+    "seconds": 7.41
+  },
+  "frontend_unit": {
+    "passed": 12,
+    "files": 5
+  },
+  "browser_chrome": {
+    "passed": 12,
+    "seconds": 13.9
+  },
+  "checks": [
+    "ruff check backend scripts",
+    "ruff format --check backend scripts",
+    "python -m compileall -q backend scripts",
+    "npm run lint",
+    "npm run build",
+    "Docker Compose final build/start/health/proxy/readiness/600-score smoke",
+    "bootstrap twice preserves existing 600 records"
+  ],
+  "dependency_audit": {
+    "moderate": 9,
+    "high": 0,
+    "critical": 0,
+    "scope": "development tooling"
+  },
+  "warnings": [
+    "Starlette/httpx TestClient deprecation"
+  ],
+  "limitations": [
+    "No coverage percentage",
+    "No full-dataset/concurrent HTTP or initial browser-load target verification",
+    "No deployment calibration guarantee",
+    "Dataset license terms require independent source review"
+  ]
+}
