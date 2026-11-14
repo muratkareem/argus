@@ -27,3 +27,5 @@ COMPLETE means implemented with cited execution evidence; PARTIAL means an imple
 |English diploma documentation|docs/diploma 01–10|artifact/link checks|COMPLETE documentation; research limits remain|
 
 Dataset license text was not independently verified in this environment; source/rights review remains PARTIAL. The raw dataset is not redistributed. CI configuration is present, but remote GitHub checks were not triggered because no push was authorized.
+
+License review completed: the official source specifies ODbL database / DbCL contents licensing. See [dataset attribution and conditions](../DATASET_LICENSE.md); research and demonstration use must preserve the applicable source/license notices. Raw data is not redistributed. This supersedes the earlier pending-license checkpoint.

@@ -287,3 +287,5 @@ it contains no proprietary Palantir branding, assets or code.
 ## Diploma submission evidence
 
 Start with [diploma documentation](docs/diploma/01_PROJECT_OVERVIEW.md), [current checkpoint](PROGRESS.md), and [continuation checklist](NEXT_STEPS.md). Current measured results, limitations and requirement status are in docs/diploma/05_EXPERIMENTAL_RESULTS.md and docs/diploma/10_REQUIREMENTS_TRACEABILITY.md. The optional shared API key is configured with ARGUS_API_KEY; it is entered through System Information.
+
+Dataset research reports contain information from the Worldline/ULB [Credit Card Fraud Detection database](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud), licensed under [ODbL v1.0](https://opendatacommons.org/licenses/odbl/1-0/), with [DbCL v1.0](https://opendatacommons.org/licenses/dbcl/1-0/) contents. See [license review and attribution](docs/DATASET_LICENSE.md). No raw dataset or trained model binary is redistributed.

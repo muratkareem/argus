@@ -9,3 +9,5 @@ Missing/nonfinite numeric values and unsupported columns are rejected; no unrepo
 Two seed 42 experiments use60/20/20 partitions. Stratified splitting preserves class proportions; chronological splitting keeps equal timestamps together and uses strictly ordered time ranges. Every partition must contain both classes. Each run has 170,235 training, 56,745 validation and 56,746 test rows. Stratified test contains 95 positives; chronological test 74. Partition fingerprints/time ranges are saved.
 
 Raw data/artifacts stay in ignored local directories. Independent synthetic training seed 42 and demo seed 2026 support software demonstrations only. Uploaded provenance is user-declared and cannot authenticate an arbitrary file as the official dataset.
+
+License review completed: the official source specifies ODbL database / DbCL contents licensing. See [dataset attribution and conditions](../DATASET_LICENSE.md); research and demonstration use must preserve the applicable source/license notices. Raw data is not redistributed. This supersedes the earlier pending-license checkpoint.

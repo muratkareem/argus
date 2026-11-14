@@ -2,6 +2,10 @@
 
 **Development of a Machine Learning System for Credit Card Fraud Detection Using Transaction Data**
 
+**Russian:** Разработка системы машинного обучения для выявления мошеннических операций по кредитным картам на основе транзакционных данных
+
+**Kazakh:** Транзакциялық деректер негізінде несие карталарымен жасалатын алаяқтық операцияларды анықтауға арналған машиналық оқыту жүйесін әзірлеу
+
 ARGUS supports offline research and analyst review of anonymized credit card transactions. Its users are students, researchers and demonstration analysts. The objective is reproducible classification under severe class imbalance, combined with transparent explanations and a persistent investigation workflow.
 
 Functional requirements: validate/import transactions; distinguish observed labels from model flags; search/filter/sort/page records; predict individually and in batches; change review thresholds; explain on demand; compare three algorithms; retain notes, links and case decisions; export evidence; inspect health/model/dataset metadata.
