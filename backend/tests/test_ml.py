@@ -111,6 +111,42 @@ def test_predictor_validates_schema_before_inference(artifacts):
         validate_frame(df)
 
 
+def test_artifact_manifest_is_integrity_checked_and_model_is_loaded_once(artifacts, tmp_path, monkeypatch):
+    import shutil
+
+    import joblib
+
+    shutil.copytree(artifacts, tmp_path / "artifacts")
+    directory = tmp_path / "artifacts"
+    manifest = json.loads((directory / "current.json").read_text())
+    assert len(manifest["model_sha256"]) == 64
+    original = joblib.load
+    calls = []
+
+    def counting_load(path):
+        calls.append(path)
+        return original(path)
+
+    monkeypatch.setattr(joblib, "load", counting_load)
+    predictor = Predictor(directory)
+    predictor.load()
+    predictor.load()
+    assert len(calls) == 1
+    model_path = directory / manifest["version"] / "model.joblib"
+    with model_path.open("ab") as model_file:
+        model_file.write(b"corrupt")
+    with pytest.raises(ValueError, match="checksum"):
+        Predictor(directory).load()
+    assert len(calls) == 1  # Reject changed bytes before unpickling.
+
+
+@pytest.mark.parametrize("manifest", [{"version": "../outside"}, {"version": None}, {}, {"version": 123}])
+def test_artifact_manifest_rejects_unsafe_or_invalid_versions(tmp_path, manifest):
+    (tmp_path / "current.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="artifact"):
+        Predictor(tmp_path).load()
+
+
 def test_duplicate_removal_and_chronological_split(tmp_path):
     df = synthetic(500)
     df = pd.concat([df, df.iloc[:8]])

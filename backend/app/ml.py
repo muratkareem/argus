@@ -4,12 +4,15 @@ import argparse
 import hashlib
 import json
 import os
+import pickle
 import platform
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from importlib.metadata import version as package_version
 from pathlib import Path
+from threading import RLock
 
 import joblib
 import numpy as np
@@ -411,9 +414,15 @@ def train(df, artifact_dir, provenance, split="stratified"):
         version_dir / "model.joblib",
     )
     (version_dir / "report.json").write_text(json.dumps(report, indent=2, allow_nan=False))
-    temp = path / "current.tmp"
-    temp.write_text(json.dumps({"version": version}))
-    temp.replace(path / "current.json")
+    model_path = version_dir / "model.joblib"
+    with model_path.open("rb") as model_file:
+        model_checksum = hashlib.file_digest(model_file, "sha256").hexdigest()
+    # A unique temporary name allows independent training processes to finish
+    # without sharing a partial manifest. Activation is one atomic rename.
+    with tempfile.NamedTemporaryFile("w", dir=path, prefix="current-", suffix=".tmp", delete=False) as temp:
+        json.dump({"version": version, "model_sha256": model_checksum, "artifact_format_version": 2}, temp)
+        manifest_path = Path(temp.name)
+    manifest_path.replace(path / "current.json")
     return report
 
 
@@ -422,16 +431,53 @@ class Predictor:
         self.directory = Path(directory)
         self.bundle = None
         self.version = None
+        self._manifest_signature = None
+        self._lock = RLock()
 
     def load(self):
-        manifest = json.loads((self.directory / "current.json").read_text())
-        version = manifest["version"]
-        if not version or any(c not in "0123456789TZ-abcdef" for c in version):
-            raise ValueError("Invalid server-owned artifact version")
-        if version != self.version:
-            self.bundle = joblib.load(self.directory / version / "model.joblib")
-            self.version = version
-        return self.bundle
+        with self._lock:
+            manifest_path = self.directory / "current.json"
+            stat = manifest_path.stat()
+            signature = (stat.st_mtime_ns, stat.st_size, stat.st_ino)
+            if self.bundle is not None and signature == self._manifest_signature:
+                return self.bundle
+            try:
+                manifest = json.loads(manifest_path.read_text())
+                version = manifest["version"]
+                if not isinstance(version, str) or not version or any(
+                    c not in "0123456789TZ-abcdef" for c in version
+                ):
+                    raise ValueError("Invalid server-owned artifact version")
+                if version != self.version:
+                    model_path = self.directory / version / "model.joblib"
+                    if not model_path.resolve().is_relative_to(self.directory.resolve()):
+                        raise ValueError("Model artifact must remain inside the server-owned directory")
+                    checksum = manifest.get("model_sha256")
+                    if checksum:
+                        with model_path.open("rb") as model_file:
+                            actual = hashlib.file_digest(model_file, "sha256").hexdigest()
+                        if actual != checksum:
+                            raise ValueError("Model artifact checksum mismatch; retrain or restore trusted artifacts")
+                    bundle = joblib.load(model_path)
+                    if bundle.get("version") != version:
+                        raise ValueError("Model and manifest versions differ")
+                    if bundle.get("feature_schema", FEATURES) != FEATURES:
+                        raise ValueError("Model feature schema differs from this application")
+                    threshold = bundle["threshold"]
+                    if not np.isfinite(threshold) or not 0 <= threshold <= 1:
+                        raise ValueError("Invalid artifact decision threshold")
+                    if not hasattr(bundle["model"], "predict_proba"):
+                        raise ValueError("Artifact does not contain a supported classifier")
+                    if list(bundle["model"].classes_) != [0, 1]:
+                        raise ValueError("Classifier must use binary class order [0, 1]")
+                    columns = getattr(bundle["model"], "feature_names_in_", FEATURES)
+                    if list(columns) != FEATURES:
+                        raise ValueError("Classifier feature order differs from the required schema")
+                    self.bundle, self.version = bundle, version
+                self._manifest_signature = signature
+            except (KeyError, TypeError, AttributeError, EOFError, pickle.UnpicklingError) as exc:
+                raise ValueError("Invalid model artifact; retrain or restore trusted artifacts") from exc
+            return self.bundle
 
     def predict(self, frame, provenance):
         frame = validate_frame(frame)
@@ -440,7 +486,12 @@ class Predictor:
             raise ValueError(
                 f"Active model trained on {bundle['provenance']}; cannot score {provenance} data"
             )
-        return bundle, bundle["model"].predict_proba(frame[FEATURES])[:, 1]
+        scores = np.asarray(bundle["model"].predict_proba(frame[FEATURES])[:, 1], dtype=float)
+        if scores.shape != (len(frame),) or not np.isfinite(scores).all() or (
+            (scores < 0) | (scores > 1)
+        ).any():
+            raise ValueError("Classifier returned invalid probability estimates")
+        return bundle, scores
 
     def explain(self, features, provenance):
         import shap
