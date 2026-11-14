@@ -205,7 +205,24 @@ def test_reproducible_training_and_explanation_cache_activation(tmp_path):
     for left, right in zip(first["models"], second["models"]):
         assert left["parameters"] == right["parameters"]
         assert left["threshold"] == right["threshold"]
-        assert left["test"] == right["test"]
+
+        # Parallel estimator reductions can differ at machine precision. Keep
+        # structure/counts exact and constrain numeric drift to 1e-12.
+        def assert_metric_equal(a, b):
+            if isinstance(a, dict):
+                assert a.keys() == b.keys()
+                for key in a:
+                    assert_metric_equal(a[key], b[key])
+            elif isinstance(a, list):
+                assert len(a) == len(b)
+                for item_a, item_b in zip(a, b):
+                    assert_metric_equal(item_a, item_b)
+            elif isinstance(a, float):
+                assert a == pytest.approx(b, rel=1e-12, abs=1e-12)
+            else:
+                assert a == b
+
+        assert_metric_equal(left["test"], right["test"])
     current = predictor.explain(features, "synthetic")
     assert current["model_version"] == second["version"] != old["model_version"]
     assert current["cache_hit"] is False

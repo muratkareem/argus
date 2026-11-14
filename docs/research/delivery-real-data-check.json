@@ -1,0 +1,14 @@
+{
+  "measured_at": "2026-11-14T15:33:11.056757+00:00",
+  "source": "first 1000 rows of existing authorized ULB CSV; no retraining",
+  "model": "XGBoost",
+  "version": "20261114T080308283241Z-6d0da1ed",
+  "cold_artifact_load_ms": 2.3132089991122484,
+  "conditions": "In-process HTTP, local SQLite, existing XGBoost CPU artifact; cold load excludes interpreter imports and OS page cache is uncontrolled. Concurrency4,40 single requests; not production-scale evidence.",
+  "imported": 0,
+  "stored_unique_rows": 993,
+  "first_explanation_ms": 150.84429099806584,
+  "repeated_explanation_ms": 7.573167007649317,
+  "concurrent_prediction_p95_ms": 23.752493753272574,
+  "batch_1000_ms": 27.18433298286982
+}
