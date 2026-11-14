@@ -7,7 +7,6 @@ assets and layouts; no Palantir screenshots or proprietary assets are bundled.
 - [Object Views](https://www.palantir.com/docs/foundry/object-views/overview): reusable entity representations in full and compact panels. ARGUS keeps a stable transaction/entity inspector across investigation contexts.
 - [Full Object Views](https://www.palantir.com/docs/foundry/object-views/use-full-views-in-platform): contextual inspection and resizable views inform the investigation workbench.
 - [Gotham public product page](https://www.palantir.com/platforms/gotham/): relationship-oriented investigation is treated as inspiration; ARGUS's graph remains an explicitly synthetic SQL fixture, not an invented ULB ontology.
-- [AIP overview](https://www.palantir.com/docs/foundry/aip/overview): structured operational context and separation of interpretation from evidence inform the restricted local Copilot.
 
 The design system uses flat navy surfaces, thin separators, compact typography,
 restrained blue-gray/teal accents and reserved risk colors. Resizing, saved

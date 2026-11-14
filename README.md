@@ -1,6 +1,6 @@
 # ARGUS
 
-**AI-Powered Credit Card Fraud Detection & Investigation Platform**
+**Machine Learning Credit Card Fraud Detection & Investigation Platform**
 
 A local, open-source analyst workspace for reproducible fraud research: import
 transactions, run real ML inference, inspect SHAP contributions, compare held-out
@@ -29,8 +29,6 @@ metrics, and document investigations in a persistent database.
   five statuses, notes, analyst decisions, search and dated JSON reports.
 - **Graph:** Cytoscape zoom/pan, entity selection and type highlighting over a
   separate synthetic relational fixture stored in SQL.
-- **Optional Copilot:** selected records passed to local Ollama through a read-only
-  evidence boundary. Gracefully disabled by default; the main app is independent.
 - **Engineering:** PostgreSQL, Docker Compose, CI, backend/integration/ML tests,
   frontend component tests, Chromium browser workflows, responsive screenshots.
 
@@ -47,9 +45,6 @@ PDF reports remain planned.
   transaction/synthetic-entity panes; deep links, SHAP and explicit decisions.
 - **Graph Intelligence:** bounded neighborhood expansion, entity/relationship
   filters, shared-device structural cues and bidirectional case/entity links.
-- **Evidence Copilot:** bounded read-only context, structured source-ID validation,
-  local model summaries and explicitly labeled generated-note saving. Real
-  `qwen2.5:7b` API and browser integration were verified using synthetic fixtures.
 - **Keyboard and accessibility:** Cmd/Ctrl+K global search, Escape, contained
   dialog focus, keyboard-resizable separators and persistent display density.
 
@@ -58,11 +53,10 @@ models, PostgreSQL records and benchmark reports. New analyst tables are additiv
 no existing model is retrained or data reimported by the upgrade.
 
 <details>
-<summary>Investigation, graph and live local Copilot screenshots</summary>
+<summary>Investigation and graph screenshots</summary>
 
 ![Resizable investigation workbench with synthetic evidence](docs/screenshots/investigation-upgrade.png)
 ![Synthetic neighborhood and case links](docs/screenshots/graph-upgrade.png)
-![Real local qwen2.5:7b response over synthetic evidence](docs/screenshots/copilot-upgrade.png)
 
 </details>
 
@@ -134,8 +128,7 @@ ARGUS_DATABASE_URL=postgresql+psycopg://argus:YOUR_PASSWORD@127.0.0.1:5432/argus
 ```
 
 `.env`, databases, private datasets, credentials, model binaries and local caches
-are ignored. The API creates its initial tables; schema migrations are a roadmap
-item. Run native commands from the root so artifact/database paths agree.
+are ignored. The API applies additive numbered migrations at startup. Run native commands from the root so artifact/database paths agree.
 
 ## Training and authorized data
 
@@ -227,7 +220,6 @@ flowchart LR
     Training[Offline sklearn + XGBoost training] --> Artifacts[Versioned model + evaluation JSON]
     Artifacts --> API
     API --> SHAP[SHAP contributions]
-    API -. selected read-only evidence .-> Ollama[Optional local Copilot]
 ```
 
 React, TypeScript, Vite, Tailwind CSS, Lucide, Recharts, Cytoscape.js;
@@ -236,30 +228,6 @@ XGBoost, SHAP, joblib; PostgreSQL 17; pytest, Vitest, Playwright, Ruff, ESLint.
 No distributed infrastructure or external LLM service is required.
 
 See [architecture](docs/ARCHITECTURE.md) and [API reference](docs/API.md).
-
-## Optional local Ollama
-
-Install and start Ollama separately, then:
-
-```sh
-ollama pull llama3.2
-```
-
-Set `ARGUS_OLLAMA_ENABLED=true` and choose `ARGUS_OLLAMA_MODEL` in `.env`.
-If `qwen2.5:7b` is already installed, set `ARGUS_OLLAMA_MODEL=qwen2.5:7b`; this
-is the locally verified model. Then
-restart the native backend or recreate the Compose backend. Native default
-URL is `http://127.0.0.1:11434`; Docker uses `host.docker.internal`. Linux Docker
-may need a host-gateway configuration. Supply an existing transaction/case ID
-in the Copilot page. No SQL or shell execution tool is exposed.
-
-Enabled/disabled behavior is tested without requiring a model in CI. A real
-installed `qwen2.5:7b` model was also verified through the API and browser: selected
-synthetic evidence, valid source IDs, generation without database writes, and an
-explicit labeled-note save. See [integration evidence](docs/research/ollama-integration.json)
-and [browser evidence](docs/research/ollama-ui-verification.json). Other model
-families are unverified. Valid source IDs do not guarantee every LLM claim; verify
-interpretations against the supplied evidence. Context truncation is disclosed.
 
 ## Verification
 
@@ -295,7 +263,7 @@ for current pass/fail results and platform-specific limits.
 ## Limitations and roadmap
 
 Local educational use only: no user authentication, production authorization,
-migrations, regulatory certification, guaranteed calibration or full-dataset
+regulatory certification, guaranteed calibration or full-dataset
 performance claim. Uploads/scoring and dashboard aggregation are memory-bound.
 A single active model is supported; incompatible provenance is rejected. Models
 are trusted server-owned joblib files; never place untrusted binaries in that
@@ -303,7 +271,7 @@ folder. CORS is restricted, queries are parameterized, uploads are validated and
 bounded, and model/data directories are excluded from publication.
 
 The graph is a **separate synthetic relationship fixture**, not inferred ULB
-relationships. ULB results above were measured; live qwen2.5:7b integration is verified.
+relationships. Current verified experiments are preserved in docs/research/diploma-ulb-*.json.
 PDF export is planned; graph entity case links are implemented. See the [roadmap](docs/ROADMAP.md).
 
 ## License and acknowledgements
@@ -315,3 +283,7 @@ attribution are in [OPEN_SOURCE_ATTRIBUTION.md](docs/OPEN_SOURCE_ATTRIBUTION.md)
 
 ARGUS is an original design inspired by dense enterprise analysis workflows;
 it contains no proprietary Palantir branding, assets or code.
+
+## Diploma submission evidence
+
+Start with [diploma documentation](docs/diploma/01_PROJECT_OVERVIEW.md), [current checkpoint](PROGRESS.md), and [continuation checklist](NEXT_STEPS.md). Current measured results, limitations and requirement status are in docs/diploma/05_EXPERIMENTAL_RESULTS.md and docs/diploma/10_REQUIREMENTS_TRACEABILITY.md. The optional shared API key is configured with ARGUS_API_KEY; it is entered through System Information.
