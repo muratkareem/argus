@@ -167,6 +167,58 @@ def test_artifact_manifest_rejects_unsafe_or_invalid_versions(tmp_path, manifest
         Predictor(tmp_path).load()
 
 
+def test_concurrent_requests_share_one_loaded_model(artifacts, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    import joblib
+
+    original, calls = joblib.load, []
+
+    def counting_load(path):
+        calls.append(path)
+        return original(path)
+
+    monkeypatch.setattr(joblib, "load", counting_load)
+    predictor = Predictor(artifacts)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        bundles = list(pool.map(lambda _: predictor.load(), range(32)))
+    assert len(calls) == 1
+    assert all(bundle is bundles[0] for bundle in bundles)
+
+
+def test_reproducible_training_and_explanation_cache_activation(tmp_path):
+    frame = synthetic(450, seed=193)
+    first = train(frame, tmp_path, "synthetic")
+    predictor = Predictor(tmp_path)
+    features = synthetic(1, seed=984)[FEATURES].iloc[0].to_dict()
+    old = predictor.explain(features, "synthetic")
+    old_explainer = predictor._explainer
+    second = train(frame[frame.columns[::-1]], tmp_path, "synthetic")
+    assert first["version"] != second["version"]
+    assert first["dataset_sha256"] == second["dataset_sha256"]
+    assert first["partitions"] == second["partitions"]
+    assert first["selected_model"] == second["selected_model"]
+    for left, right in zip(first["models"], second["models"]):
+        assert left["parameters"] == right["parameters"]
+        assert left["threshold"] == right["threshold"]
+        assert left["test"] == right["test"]
+    current = predictor.explain(features, "synthetic")
+    assert current["model_version"] == second["version"] != old["model_version"]
+    assert current["cache_hit"] is False
+    assert predictor._explainer is not old_explainer
+
+
+def test_batch_and_single_predictions_match_and_thresholds_are_monotonic(artifacts):
+    predictor = Predictor(artifacts)
+    frame = synthetic(12, seed=35)
+    _, batch = predictor.predict(frame, "synthetic")
+    single = [predictor.predict(frame.iloc[[i]], "synthetic")[1][0] for i in range(len(frame))]
+    np.testing.assert_allclose(batch, single, atol=1e-7)
+    assert np.isfinite(batch).all()
+    assert ((0 <= batch) & (batch <= 1)).all()
+    assert (batch >= 0.8).sum() <= (batch >= 0.2).sum()
+
+
 def test_duplicate_removal_and_chronological_split(tmp_path):
     df = synthetic(500)
     df = pd.concat([df, df.iloc[:8]])
