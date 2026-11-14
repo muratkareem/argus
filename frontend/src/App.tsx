@@ -1,13 +1,12 @@
 import { SystemInformation } from "./pages/SystemInformation";
 import { ModelDiagnostics } from "./pages/ModelDiagnostics";
 import { PredictionForm } from "./pages/PredictionForm";
-import { GraphIntelligence } from "./pages/GraphIntelligence";
 import { InvestigationWorkspace } from "./pages/InvestigationWorkspace";
 import { TransactionIntelligence } from "./pages/TransactionIntelligence";
 import { Risk, Empty, Panel, Metric, TxTable, Loading } from "./ui";
 import { CommandMenu } from "./components/CommandMenu";
 export { Risk, Empty } from "./ui";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Activity,
   ArrowDownToLine,
@@ -52,6 +51,12 @@ import type {
   Settings,
   Tx,
 } from "./types";
+
+const GraphIntelligence = lazy(() =>
+  import("./pages/GraphIntelligence").then((module) => ({
+    default: module.GraphIntelligence,
+  })),
+);
 
 const pages = [
   ["overview", "Overview", LayoutDashboard],
@@ -349,7 +354,9 @@ export default function App() {
             />
           )}
           {page === "graph" && (
-            <GraphIntelligence fail={fail} notify={setNotice} />
+            <Suspense fallback={<Loading />}>
+              <GraphIntelligence fail={fail} notify={setNotice} />
+            </Suspense>
           )}
           {page === "settings" && (
             <SystemInformation
