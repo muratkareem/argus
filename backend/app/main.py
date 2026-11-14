@@ -260,6 +260,23 @@ def create_app(settings=None):
 
     app.include_router(intelligence_router(db))
 
+    def active_model_info():
+        try:
+            bundle = predictor.load()
+            report_path = settings.artifact_dir / bundle["version"] / "report.json"
+            report = json.loads(report_path.read_text()) if report_path.exists() else {}
+            return {
+                "status": "ready",
+                "name": bundle.get("model_name"),
+                "version": bundle["version"],
+                "provenance": bundle["provenance"],
+                "threshold": bundle["threshold"],
+                "last_evaluated_at": report.get("created_at"),
+                "probability_type": "uncalibrated model class probability",
+            }
+        except (FileNotFoundError, ValueError, KeyError, OSError):
+            return {"status": "unavailable", "name": None, "version": None}
+
     def prediction(features, provenance, threshold=None, transaction_id=None):
         started = time.perf_counter()
         try:
@@ -280,7 +297,22 @@ def create_app(settings=None):
     @app.get("/api/v1/health")
     def health(session: Session = Depends(db)):
         session.execute(text("SELECT 1"))
-        return {"status": "ok", "database": engine.dialect.name, "research_prototype": True}
+        return {
+            "status": "ok",
+            "database": engine.dialect.name,
+            "research_prototype": True,
+            "model_status": active_model_info()["status"],
+        }
+
+    @app.get("/api/v1/ready")
+    def ready(session: Session = Depends(db)):
+        session.execute(text("SELECT 1"))
+        model = active_model_info()
+        if model["status"] != "ready":
+            raise HTTPException(
+                503, "Database is healthy; train or restore a trusted model artifact"
+            )
+        return {"status": "ready", "model": model}
 
     @app.post("/api/v1/predict")
     def predict(data: PredictInput):
@@ -728,8 +760,19 @@ def create_app(settings=None):
         return {
             "database": engine.dialect.name,
             "max_upload_mib": settings.max_upload_bytes // 1024**2,
-            "authentication": "None; local research use only",
+            "authentication": "Bearer API key"
+            if settings.api_key
+            else "None; local research use only",
             "schema": FEATURES + ["Class (optional)"],
+            "feature_schema": FEATURES,
+            "max_batch_size": 1000,
+            "active_model": active_model_info(),
+            "risk_bands": {
+                "low": "[0, 0.1)",
+                "medium": "[0.1, 0.5)",
+                "high": "[0.5, 0.9)",
+                "critical": "[0.9, 1]",
+            },
         }
 
     return app

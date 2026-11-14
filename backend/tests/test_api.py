@@ -366,3 +366,16 @@ def test_dataset_scoring_uses_bounded_chunks(client):
     assert result.status_code == 200, result.text
     assert result.json()["scored"] == 4100
     assert calls == [2000, 2000, 100]
+
+
+def test_model_readiness_and_system_information(client, settings, tmp_path):
+    assert client.get("/api/v1/ready").status_code == 200
+    info = client.get("/api/v1/settings").json()
+    assert info["active_model"]["status"] == "ready"
+    assert info["feature_schema"] == FEATURES
+    assert info["max_batch_size"] == 1000
+    settings.artifact_dir = tmp_path / "empty"
+    with TestClient(create_app(settings)) as empty:
+        assert empty.get("/api/v1/health").status_code == 200
+        assert empty.get("/api/v1/health").json()["model_status"] == "unavailable"
+        assert empty.get("/api/v1/ready").status_code == 503
