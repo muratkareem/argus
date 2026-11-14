@@ -10,8 +10,10 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    event,
 )
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 
 def now():
@@ -94,11 +96,29 @@ class Relationship(Base):
 
 
 def connect(url):
+    sqlite = url.startswith("sqlite")
+    options = {}
+    if sqlite and (url.endswith(":memory:") or url in {"sqlite://", "sqlite+pysqlite://"}):
+        # One connection keeps an in-memory database visible to worker threads.
+        options["poolclass"] = StaticPool
     engine = create_engine(
         url,
-        connect_args={"check_same_thread": False} if url.startswith("sqlite") else {},
+        connect_args={"check_same_thread": False, "timeout": 30} if sqlite else {},
         pool_pre_ping=True,
+        **options,
     )
+    if sqlite:
+        @event.listens_for(engine, "connect")
+        def configure_sqlite(connection, _record):
+            cursor = connection.cursor()
+            try:
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.execute("PRAGMA busy_timeout=30000")
+                # WAL lets dashboard readers proceed during a bounded import write.
+                # SQLite leaves in-memory databases in their supported memory mode.
+                cursor.execute("PRAGMA journal_mode=WAL")
+            finally:
+                cursor.close()
     return engine, sessionmaker(bind=engine, expire_on_commit=False)
 
 
