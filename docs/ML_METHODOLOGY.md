@@ -12,12 +12,14 @@ access bypass was used. This repository publishes derived evaluation reports
 and source checksum metadata, not the dataset.
 
 Features are `Time`, `V1`–`V28`, `Amount`; target `Class` is binary. Training
-rejects absent/extra columns, nonnumeric/missing/nonfinite values, negative
+rejects absent/extra/duplicate columns, nonnumeric/missing/nonfinite values, negative
 Time/Amount, and invalid target values. Feature-identical rows with conflicting
 labels are rejected. Other feature-identical duplicates are removed before
 splitting. Reports record counts, SHA-256 of the normalized dataset, partition
 sizes and fraud counts, partition index digests, seed, parameters, environment,
-versions, and duration. SHA-256 here is a reproducibility identifier, not a
+versions, observed data types, missing-value counts, amount quantiles, time ranges,
+feature meanings, and duration. Columns and numeric dtypes are canonicalized before
+hashing. SHA-256 here is a reproducibility identifier, not a
 privacy mechanism.
 
 ## Reproducible comparison
@@ -32,7 +34,9 @@ privacy mechanism.
 5. Each algorithm selects its parameter candidate using **validation AP**.
 6. Its decision threshold maximizes F1 on the validation precision-recall curve.
    This is a research tradeoff, not a calibrated operational fraud-cost policy.
-7. The winning algorithm is selected by validation AP **before** test evaluation.
+7. The winning algorithm is selected by validation AP **before** test evaluation;
+   exact AP ties prefer lower measured warm single-record p95 latency. All timing
+   results are retained so that the accuracy/latency trade-off is reviewable.
 8. Each winning candidate receives one final evaluation on the untouched test
    partition. Reading the test results must not be used to retune the same run.
 9. Serialize only the selected fitted model, preprocessing, threshold, provenance,
@@ -54,8 +58,9 @@ supports grouped-by-account validation because account IDs are absent.
 ## Metrics and interpretation
 
 Saved metrics: precision, recall, F1, average precision (reported as PR-AUC/AP),
-ROC-AUC, confusion matrix in `[[TN, FP], [FN, TP]]` order, false-positive rate,
-and precision-recall points sampled at recall transitions (up to 400), preserving
+ROC-AUC, confusion matrix in `[[TN, FP], [FN, TP]]` order, false-positive and
+false-negative rates, ROC points (up to 400), and precision-recall points sampled
+at recall transitions (up to 400), preserving
 both endpoints and rare positive transitions. AP uses scikit-learn's average precision,
 not trapezoidal integration of the PR curve. These are distinct definitions.
 
@@ -68,17 +73,42 @@ positive counts, and provenance alongside scores.
 A `predict_proba` output is called an **uncalibrated model score**, especially
 because class weighting changes the effective training distribution. No claim
 of calibrated real-world fraud probability, operational savings, or causal
-explanation is made.
+explanation is made. Brier score and ten quantile-bin calibration curves assess
+probability quality on validation and held-out data without fitting a calibration
+transformation. Class weighting and prevalence shift can make these estimates
+poorly calibrated even when AP is high. The test calibration curve is descriptive;
+it must not be used to refit this run.
+
+Each model includes a validation-only threshold profile at 0.05 increments plus
+its selected threshold. The profile reports precision, recall, F1, false-positive
+and false-negative counts, and illustrative cost `1 × FP + 25 × FN`. These are
+arbitrary, explicitly stated cost units rather than verified banking costs.
+The cost illustration does not select the threshold: maximum validation F1 does.
+Changing the interactive classification threshold changes decisions, not stored
+model scores or held-out experiment results.
+
+Each selected per-algorithm candidate is warmed up and timed with one sequential
+caller: 20 single-record calls and five 1,000-record calls, reporting single p50/p95
+and batch median/p95 in milliseconds. Inputs come from validation, repeated when
+fewer than 1,000 rows are available. These are in-process `predict_proba` timings;
+they exclude API validation, serialization, database access and network latency.
+They must not be presented as end-to-end latency or concurrent-load guarantees.
 
 ## Explainability
 
 SHAP LinearExplainer explains standardized logistic log-odds using training
 background. TreeExplainer explains XGBoost raw margins/log-odds and forest
 positive-class probability. All 30 attributions and their base value are
-returned, and the UI shows the largest absolute contributions. Automated tests
+returned, with an exact `log-odds` or `probability` output-space label and the
+score reconstructed from the attribution sum. The UI shows the largest absolute
+contributions. Automated tests
 check that contributions reconstruct each algorithm's output in its proper
 space. Global importance is absolute standardized coefficient magnitude or
 estimator tree importance, with scales that must not be compared across models.
+Detailed explanations are calculated on demand. Each Predictor reuses its SHAP
+explainer and retains at most 128 version-specific results in an LRU cache; model
+activation clears the explanation cache on the next explanation. A separate lock
+prevents SHAP work from holding the ordinary model-activation lock.
 
 V1–V28 are anonymized components. They do not justify claims about location,
 merchant, device, cardholder behavior, or an actual fraud cause. The separate
@@ -95,8 +125,19 @@ learnable feature shifts and are useful for software verification only.
 The ML Laboratory reads server-owned report JSON; it never synthesizes metrics.
 Repeated runs retain versions; scores are reproducible with the locked dependency
 versions and seed, allowing for platform floating-point differences. Timestamps
-and measured durations will vary. Confidence intervals, calibration, broader
-search, external validation and drift monitoring remain future research work.
+and measured durations will vary. Confidence intervals, fitted probability
+calibration, broader search, external validation and drift monitoring remain
+future research work.
+
+Current-format training writes immutable version directories and atomically
+activates a manifest containing a model SHA-256 checksum. Predictor verifies the
+checksum before deserialization, feature order, binary class order and decision
+threshold, and shares one loaded model across requests. These checks detect
+accidental corruption and schema mismatches; joblib is still executable pickle
+content and must come only from the trusted local training process. The checksum
+is not a signature or a defense against an attacker able to replace both files.
+Legacy server-owned artifacts without checksum metadata remain loadable for
+backward compatibility; retrain to obtain the current artifact format.
 
 
 ## Actual ULB experiments (26 October 2026)
