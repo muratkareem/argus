@@ -1,20 +1,13 @@
-import { SystemInformation } from "./pages/SystemInformation";
-import { ModelDiagnostics } from "./pages/ModelDiagnostics";
-import { PredictionForm } from "./pages/PredictionForm";
-import { InvestigationWorkspace } from "./pages/InvestigationWorkspace";
-import { TransactionIntelligence } from "./pages/TransactionIntelligence";
-import { Risk, Empty, Panel, Metric, TxTable, Loading } from "./ui";
+import { Risk, Empty, Loading } from "./ui";
 import { CommandMenu } from "./components/CommandMenu";
 export { Risk, Empty } from "./ui";
 import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Activity,
-  ArrowDownToLine,
   ArrowRight,
   Check,
   ChevronRight,
   CircleHelp,
-  Database,
   FileSearch,
   FlaskConical,
   Focus,
@@ -28,30 +21,26 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { api, amount, download, percent, send } from "./api";
-import type {
-  Case,
-  Dataset,
-  Experiment,
-  Models,
-  Overview,
-  Settings,
-  Tx,
-} from "./types";
-
+import { api, send, percent } from "./api";
+import type { Case, Settings, Tx } from "./types";
+const OverviewPage = lazy(() => import("./pages/OverviewPage"));
+const Detection = lazy(() => import("./pages/Detection"));
+const Laboratory = lazy(() => import("./pages/Laboratory"));
+const TransactionIntelligence = lazy(() =>
+  import("./pages/TransactionIntelligence").then((m) => ({
+    default: m.TransactionIntelligence,
+  })),
+);
+const InvestigationWorkspace = lazy(() =>
+  import("./pages/InvestigationWorkspace").then((m) => ({
+    default: m.InvestigationWorkspace,
+  })),
+);
+const SystemInformation = lazy(() =>
+  import("./pages/SystemInformation").then((m) => ({
+    default: m.SystemInformation,
+  })),
+);
 const GraphIntelligence = lazy(() =>
   import("./pages/GraphIntelligence").then((module) => ({
     default: module.GraphIntelligence,
@@ -71,14 +60,6 @@ const route = () => location.hash.slice(1).split(/[/?]/)[0] || "overview";
 const nav = (page: string) => {
   location.hash = page;
 };
-const tipStyle = {
-  background: "#141e2c",
-  border: "1px solid #2b3949",
-  borderRadius: 8,
-  color: "#dde6f1",
-  fontSize: 12,
-};
-
 export default function App() {
   const [page, setPage] = useState(route),
     [revision, setRevision] = useState(0),
@@ -319,60 +300,62 @@ export default function App() {
             </span>
             <span className="banner-tag">EXPERIMENTAL</span>
           </div>
-          {page === "overview" && (
-            <OverviewPage
-              revision={revision}
-              onSelect={setSelectedTx}
-              fail={fail}
-            />
-          )}
-          {page === "transactions" && (
-            <TransactionIntelligence
-              revision={revision}
-              onSelect={setSelectedTx}
-              fail={fail}
-            />
-          )}
-          {page === "detection" && (
-            <Detection
-              revision={revision}
-              refresh={refresh}
-              upload={() => setUploadOpen(true)}
-              notify={setNotice}
-              fail={fail}
-            />
-          )}
-          {page === "laboratory" && (
-            <Laboratory revision={revision} fail={fail} />
-          )}
-          {page === "investigations" && (
-            <InvestigationWorkspace
-              revision={revision}
-              onSelect={setSelectedTx}
-              fail={fail}
-              notify={setNotice}
-            />
-          )}
-          {page === "graph" && (
-            <Suspense fallback={<Loading />}>
-              <GraphIntelligence fail={fail} notify={setNotice} />
-            </Suspense>
-          )}
-          {page === "settings" && (
-            <SystemInformation
-              settings={settings}
-              revision={revision}
-              reconnect={() => {
-                setError("");
-                refresh();
-              }}
-            />
-          )}
-          {!pages.some((p) => p[0] === page) && (
-            <Empty>
-              Unknown page. <a href="#overview">Return to overview</a>.
-            </Empty>
-          )}
+          <Suspense fallback={<Loading />}>
+            {page === "overview" && (
+              <OverviewPage
+                revision={revision}
+                onSelect={setSelectedTx}
+                fail={fail}
+              />
+            )}
+            {page === "transactions" && (
+              <TransactionIntelligence
+                revision={revision}
+                onSelect={setSelectedTx}
+                fail={fail}
+              />
+            )}
+            {page === "detection" && (
+              <Detection
+                revision={revision}
+                refresh={refresh}
+                upload={() => setUploadOpen(true)}
+                notify={setNotice}
+                fail={fail}
+              />
+            )}
+            {page === "laboratory" && (
+              <Laboratory revision={revision} fail={fail} />
+            )}
+            {page === "investigations" && (
+              <InvestigationWorkspace
+                revision={revision}
+                onSelect={setSelectedTx}
+                fail={fail}
+                notify={setNotice}
+              />
+            )}
+            {page === "graph" && (
+              <Suspense fallback={<Loading />}>
+                <GraphIntelligence fail={fail} notify={setNotice} />
+              </Suspense>
+            )}
+            {page === "settings" && (
+              <SystemInformation
+                settings={settings}
+                revision={revision}
+                reconnect={() => {
+                  setError("");
+                  refresh();
+                }}
+              />
+            )}
+            {!pages.some((p) => p[0] === page) && (
+              <Empty>
+                Unknown page. <a href="#overview">Return to overview</a>.
+              </Empty>
+            )}
+          </Suspense>
           <footer>
             <span>
               <Focus size={12} />
@@ -413,380 +396,6 @@ export default function App() {
         />
       )}
     </div>
-  );
-}
-
-function OverviewPage({
-  revision,
-  onSelect,
-  fail,
-}: {
-  revision: number;
-  onSelect: (id: number) => void;
-  fail: (e: unknown) => void;
-}) {
-  const [data, setData] = useState<Overview | null>(null),
-    [experiment, setExperiment] = useState<Experiment | null>(null),
-    [recentCases, setRecentCases] = useState<Case[]>([]),
-    [riskBand, setRiskBand] = useState(9);
-  useEffect(() => {
-    api<Overview>("/overview").then(setData).catch(fail);
-    api<Case[]>("/cases").then(setRecentCases).catch(fail);
-    api<Models>("/models")
-      .then((d) =>
-        setExperiment(
-          d.experiments.find((e) => e.version === d.active_version) ?? null,
-        ),
-      )
-      .catch(fail);
-  }, [revision]);
-  if (!data) return <Loading />;
-  const model = experiment?.models.find(
-    (m) => m.name === experiment.selected_model,
-  );
-  return (
-    <>
-      <div className="section-kicker">
-        <span>
-          <span className="online-dot" /> LIVE WORKSPACE SNAPSHOT
-        </span>
-        <span className="mono">
-          {data.scored.toLocaleString()} scored / {data.total.toLocaleString()}{" "}
-          stored
-        </span>
-      </div>
-      <div className="metrics-grid">
-        <Metric
-          label="TOTAL TRANSACTIONS"
-          value={data.total.toLocaleString()}
-          detail={
-            <>
-              <Database size={12} />
-              {Object.entries(data.provenance_counts)
-                .map(([p, n]) => `${n} ${p}`)
-                .join(" · ") || "No datasets imported"}
-            </>
-          }
-        />
-        <Metric
-          label="FLAGGED FOR REVIEW"
-          value={data.flagged.toLocaleString()}
-          accent
-          detail={
-            <>
-              <span className="tiny-dot red" />
-              {percent(data.scored ? data.flagged / data.scored : null)} of
-              scored transactions
-            </>
-          }
-        />
-        <Metric
-          label="TRANSACTION VOLUME"
-          value={
-            <>
-              <span className="metric-unit">∑</span>
-              <span className="volume-full">{amount(data.volume)}</span>
-              <span
-                className="volume-compact"
-                title={amount(data.volume)}
-                aria-label={amount(data.volume)}
-              >
-                {new Intl.NumberFormat("en-US", {
-                  notation: "compact",
-                  maximumFractionDigits: 2,
-                }).format(data.volume)}
-              </span>
-            </>
-          }
-          detail={<>Amount units · source denomination unspecified</>}
-        />
-        <Metric
-          label="OPEN INVESTIGATIONS"
-          value={data.open_cases}
-          detail={
-            <button
-              className="text-button"
-              onClick={() => nav("investigations")}
-            >
-              View investigation queue <ArrowRight size={12} />
-            </button>
-          }
-        />
-      </div>
-      <div className="chart-grid">
-        <Panel
-          title="Transaction activity"
-          meta={
-            <span className="legend">
-              <i />
-              All transactions <i className="red" />
-              Flagged
-            </span>
-          }
-        >
-          <div className="chart-subtitle">
-            Transaction count by hour from dataset start
-          </div>
-          {data.trend.length ? (
-            <div className="chart">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={data.trend}
-                  onClick={(state) => {
-                    if (state?.activeLabel != null) {
-                      const hour = Number(state.activeLabel);
-                      nav(
-                        `transactions?min_time=${hour * 3600}&max_time=${(hour + 1) * 3600 - 0.001}`,
-                      );
-                    }
-                  }}
-                  margin={{ top: 14, right: 20, bottom: 0, left: -24 }}
-                >
-                  <defs>
-                    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#4f9baa" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#4f9baa" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="#202b38" vertical={false} />
-                  <XAxis
-                    dataKey="hour"
-                    tickFormatter={(v) => `${v}h`}
-                    tickLine={false}
-                    axisLine={false}
-                    minTickGap={40}
-                  />
-                  <YAxis
-                    tickFormatter={(value: number) =>
-                      value >= 1000 ? `${value / 1000}k` : String(value)
-                    }
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={tipStyle}
-                    labelFormatter={(v) => `Hour ${v}`}
-                  />
-                  <Area
-                    isAnimationActive={false}
-                    type="monotone"
-                    dataKey="count"
-                    stroke="#5bb5b7"
-                    fill="url(#area)"
-                    strokeWidth={2}
-                  />
-                  <Area
-                    isAnimationActive={false}
-                    type="monotone"
-                    dataKey="flagged"
-                    stroke="#f47974"
-                    fill="transparent"
-                    strokeWidth={1.5}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <Empty>Import data to view transaction activity.</Empty>
-          )}
-          <div className="chart-foot">
-            <span>Dataset time · 1 hour intervals</span>
-            <span className="mono">{data.trend.length} active intervals</span>
-          </div>
-        </Panel>
-        <Panel
-          title="Risk distribution"
-          meta={<span className="mini-tag">MODEL SCORES</span>}
-        >
-          <div className="chart-subtitle">
-            Uncalibrated score · {data.scored} transactions
-          </div>
-          <div className="chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={data.risk_distribution}
-                margin={{ top: 14, right: 14, bottom: 0, left: -24 }}
-              >
-                <CartesianGrid stroke="#202b38" vertical={false} />
-                <XAxis
-                  dataKey="bucket"
-                  interval={2}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  tickFormatter={(value: number) =>
-                    value >= 1000 ? `${value / 1000}k` : String(value)
-                  }
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip contentStyle={tipStyle} />
-                <Bar
-                  isAnimationActive={false}
-                  dataKey="count"
-                  onClick={(_data, index) =>
-                    nav(
-                      `transactions?min_risk=${index / 10}&max_risk=${(index + 1) / 10}`,
-                    )
-                  }
-                  style={{ cursor: "pointer" }}
-                  fill="#42968f"
-                  radius={[3, 3, 0, 0]}
-                  maxBarSize={24}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="chart-foot">
-            <label className="risk-band-control">
-              Inspect range
-              <select
-                aria-label="Risk band to explore"
-                value={riskBand}
-                onChange={(e) => setRiskBand(Number(e.target.value))}
-              >
-                {data.risk_distribution.map((b, index) => (
-                  <option key={b.bucket} value={index}>
-                    {b.bucket}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="text-button"
-              onClick={() =>
-                nav(
-                  `transactions?min_risk=${riskBand / 10}&max_risk=${(riskBand + 1) / 10}`,
-                )
-              }
-            >
-              Explore range <ArrowRight size={11} />
-            </button>
-          </div>
-        </Panel>
-      </div>
-      <div className="lower-grid">
-        <Panel
-          title="Flagged transactions"
-          meta={
-            <button className="text-button" onClick={() => nav("transactions")}>
-              View explorer <ArrowRight size={13} />
-            </button>
-          }
-        >
-          <div className="chart-subtitle">
-            Most recently imported records requiring analyst review
-          </div>
-          <TxTable
-            items={data.recent_flagged.slice(0, 5)}
-            onSelect={onSelect}
-          />
-        </Panel>
-        <Panel
-          title="Detection model"
-          meta={
-            <span className="status-dot-label">
-              <span className="online-dot" />
-              {model ? "ACTIVE" : "UNTRAINED"}
-            </span>
-          }
-        >
-          {model && experiment ? (
-            <div className="model-card">
-              <div className="model-icon">
-                <FlaskConical size={24} />
-              </div>
-              <h3>{model.name}</h3>
-              <p>Selected by validation average precision</p>
-              <div className="model-source">
-                {experiment.provenance.toUpperCase()} TRAINING DATA
-              </div>
-              <div className="model-stat">
-                <span>Test precision</span>
-                <b>{percent(model.test.precision)}</b>
-              </div>
-              <div className="model-stat">
-                <span>Test recall</span>
-                <b>{percent(model.test.recall)}</b>
-              </div>
-              <div className="model-stat">
-                <span>Test PR-AUC / AP</span>
-                <b className="teal">
-                  {model.test.average_precision.toFixed(3)}
-                </b>
-              </div>
-              <button
-                className="secondary full"
-                onClick={() => nav("laboratory")}
-              >
-                Open ML Laboratory <ArrowRight size={13} />
-              </button>
-              <small>
-                {experiment.provenance === "synthetic"
-                  ? "Synthetic results do not establish ULB performance."
-                  : "Held-out ULB test metrics. Live-system generalization is unverified."}
-              </small>
-            </div>
-          ) : (
-            <Empty>Train a model using the README instructions.</Empty>
-          )}
-        </Panel>
-      </div>
-      <Panel
-        title="Recent investigations"
-        meta={
-          <button className="text-button" onClick={() => nav("investigations")}>
-            Open workbench <ArrowRight size={12} />
-          </button>
-        }
-      >
-        {recentCases.length ? (
-          <div className="case-watchlist">
-            {recentCases.slice(0, 4).map((c) => (
-              <a key={c.id} href={`#investigations/${c.id}`}>
-                <span className="mono">
-                  CASE-{String(c.id).padStart(4, "0")}
-                </span>
-                <b>{c.title}</b>
-                <span>
-                  <i
-                    className={
-                      "badge " +
-                      (["Critical", "High"].includes(c.priority)
-                        ? "danger"
-                        : "neutral")
-                    }
-                  >
-                    {c.priority}
-                  </i>
-                  <small>{c.status}</small>
-                </span>
-              </a>
-            ))}
-          </div>
-        ) : (
-          <Empty>
-            No investigations yet. Start from a flagged transaction.
-          </Empty>
-        )}
-      </Panel>
-      <div className="insight-bar">
-        <ShieldCheck size={19} />
-        <span>
-          <b>
-            Labeled-data detection rate: {percent(data.fraud_detection_rate)}
-          </b>
-          <small>
-            Observed labels: {data.labeled_fraud ?? "—"} fraud,{" "}
-            {data.labeled_legitimate ?? "—"} legitimate, {data.unlabeled ?? "—"}{" "}
-            unlabeled. Computed over {data.labeled_scored_fraud} labeled fraud
-            records with stored scores. This is an operational view, separate
-            from held-out test evaluation.
-          </small>
-        </span>
-      </div>
-    </>
   );
 }
 
@@ -1125,401 +734,5 @@ function TransactionDrawer({
         )}
       </section>
     </div>
-  );
-}
-
-function Detection({
-  revision,
-  refresh,
-  upload,
-  notify,
-  fail,
-}: {
-  revision: number;
-  refresh: () => void;
-  upload: () => void;
-  notify: (s: string) => void;
-  fail: (e: unknown) => void;
-}) {
-  const [datasets, setDatasets] = useState<Dataset[]>([]),
-    [models, setModels] = useState<Models | null>(null),
-    [busy, setBusy] = useState<number | null>(null);
-  useEffect(() => {
-    api<Dataset[]>("/datasets").then(setDatasets).catch(fail);
-    api<Models>("/models").then(setModels).catch(fail);
-  }, [revision]);
-  async function score(id: number) {
-    setBusy(id);
-    try {
-      const r = await api<{ scored: number }>(`/datasets/${id}/score`, {
-        method: "POST",
-      });
-      notify(`Scored ${r.scored} transactions using the active model.`);
-      refresh();
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(null);
-    }
-  }
-  return (
-    <>
-      <PredictionForm models={models} />
-      <div className="two-grid">
-        <Panel title="Inference pipeline">
-          <div className="pipeline-steps">
-            {[
-              [
-                "01",
-                "Validate schema",
-                "Time, V1–V28, Amount · optional Class",
-              ],
-              [
-                "02",
-                "Resolve provenance",
-                "ULB and synthetic models stay separate",
-              ],
-              ["03", "Score transactions", "Actual serialized model inference"],
-              [
-                "04",
-                "Persist evidence",
-                "Score, threshold, model version, source",
-              ],
-            ].map(([n, title, desc]) => (
-              <div key={n}>
-                <span className="step-number">{n}</span>
-                <div>
-                  <h3>{title}</h3>
-                  <p>{desc}</p>
-                </div>
-                <Check size={16} />
-              </div>
-            ))}
-          </div>
-        </Panel>
-        <Panel title="Active model">
-          <div className="padded">
-            <p className="muted">Current model version</p>
-            <code className="wrap-code">
-              {models?.active_version ?? "No model trained"}
-            </code>
-            <p>
-              Train reproducibly from the command line. A new experiment
-              activates only after its artifacts have been written.
-            </p>
-            <pre>
-              PYTHONPATH=backend uv run python -m app.ml
-              <br /> --csv data/private/creditcard.csv
-            </pre>
-            <button className="secondary" onClick={() => nav("laboratory")}>
-              Inspect experiments
-              <ArrowRight size={14} />
-            </button>
-          </div>
-        </Panel>
-      </div>
-      <Panel
-        title="Imported datasets"
-        meta={
-          <button className="secondary" onClick={upload}>
-            <Plus size={14} />
-            Import CSV
-          </button>
-        }
-      >
-        {datasets.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Dataset</th>
-                  <th>Source</th>
-                  <th>Stored rows</th>
-                  <th>Duplicates</th>
-                  <th>Batch inference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {datasets.map((d) => (
-                  <tr key={d.id}>
-                    <td>
-                      {d.name}
-                      <small className="table-sub">
-                        {new Date(d.created_at).toLocaleString()}
-                      </small>
-                    </td>
-                    <td>
-                      <span className="badge neutral">{d.provenance}</span>
-                    </td>
-                    <td className="mono">{d.rows}</td>
-                    <td className="mono">{d.duplicates}</td>
-                    <td>
-                      <button
-                        className="secondary"
-                        disabled={busy !== null || d.rows === 0}
-                        onClick={() => score(d.id)}
-                      >
-                        {busy === d.id ? (
-                          <LoaderCircle size={14} className="spin" />
-                        ) : (
-                          <ShieldCheck size={14} />
-                        )}
-                        Score dataset
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <Empty>No datasets imported yet.</Empty>
-        )}
-      </Panel>
-    </>
-  );
-}
-
-function Laboratory({
-  revision,
-  fail,
-}: {
-  revision: number;
-  fail: (e: unknown) => void;
-}) {
-  const [models, setModels] = useState<Models | null>(null),
-    [version, setVersion] = useState(""),
-    [selected, setSelected] = useState("");
-  useEffect(() => {
-    api<Models>("/models")
-      .then((d) => {
-        setModels(d);
-        setVersion(d.active_version ?? "");
-      })
-      .catch(fail);
-  }, [revision]);
-  const experiment = models?.experiments.find((e) => e.version === version),
-    model =
-      experiment?.models.find((m) => m.name === selected) ??
-      experiment?.models.find((m) => m.name === experiment.selected_model);
-  if (!models) return <Loading />;
-  if (!experiment || !model)
-    return (
-      <Empty>
-        No trained experiments. Run{" "}
-        <code>PYTHONPATH=backend uv run python -m app.ml --synthetic</code> or
-        train from an authorized ULB CSV.
-      </Empty>
-    );
-  return (
-    <>
-      <div className="lab-toolbar">
-        <label className="field">
-          Experiment
-          <select
-            value={version}
-            onChange={(e) => {
-              setVersion(e.target.value);
-              setSelected("");
-            }}
-          >
-            {models.experiments.map((e) => (
-              <option key={e.version} value={e.version}>
-                {e.provenance} · {e.version}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="secondary"
-          onClick={() =>
-            download(`argus-experiment-${version}.json`, experiment)
-          }
-        >
-          <ArrowDownToLine size={14} />
-          Export experiment JSON
-        </button>
-      </div>
-      <div className="experiment-info">
-        <span className="badge neutral">
-          {experiment.provenance.toUpperCase()}
-        </span>
-        <span>{experiment.rows.toLocaleString()} rows</span>
-        <span>{experiment.fraud_rows} fraud</span>
-        <span>{experiment.split} split</span>
-        <span>Seed {experiment.seed}</span>
-        <span>{experiment.duplicates_removed} duplicates removed</span>
-      </div>
-      <Panel
-        title="Model comparison"
-        meta={
-          <span className="muted">
-            Click a model to inspect held-out results
-          </span>
-        }
-      >
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Algorithm</th>
-                <th>Validation AP</th>
-                <th>Test precision</th>
-                <th>Test recall</th>
-                <th>Test F1</th>
-                <th>Test AP</th>
-                <th>Test ROC-AUC</th>
-              </tr>
-            </thead>
-            <tbody>
-              {experiment.models.map((m) => (
-                <tr
-                  key={m.name}
-                  className={model.name === m.name ? "selected-row" : ""}
-                  onClick={() => setSelected(m.name)}
-                >
-                  <td>
-                    <button
-                      className="text-button"
-                      onClick={() => setSelected(m.name)}
-                    >
-                      {m.name}
-                    </button>
-                    {m.name === experiment.selected_model && (
-                      <small className="table-sub teal">
-                        Selected by validation AP
-                      </small>
-                    )}
-                  </td>
-                  <td className="mono">
-                    {m.validation_average_precision.toFixed(4)}
-                  </td>
-                  <td className="mono">{percent(m.test.precision)}</td>
-                  <td className="mono">{percent(m.test.recall)}</td>
-                  <td className="mono">{m.test.f1.toFixed(4)}</td>
-                  <td className="mono">
-                    {m.test.average_precision.toFixed(4)}
-                  </td>
-                  <td className="mono">{m.test.roc_auc.toFixed(4)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
-      <div className="two-grid">
-        <Panel title={`${model.name} · Precision-recall`}>
-          <div className="chart-subtitle">
-            Held-out test data · threshold {model.threshold.toFixed(4)} · FPR{" "}
-            {(model.test.false_positive_rate * 100).toFixed(3)}%
-          </div>
-          <div className="chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={model.test.pr_curve}
-                margin={{ top: 10, right: 25, bottom: 10, left: -15 }}
-              >
-                <CartesianGrid stroke="#202b38" />
-                <XAxis
-                  type="number"
-                  dataKey="recall"
-                  domain={[0, 1]}
-                  tickLine={false}
-                />
-                <YAxis domain={[0, 1]} tickLine={false} />
-                <Tooltip contentStyle={tipStyle} />
-                <Line
-                  isAnimationActive={false}
-                  dataKey="precision"
-                  stroke="#64c2ba"
-                  dot={false}
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="chart-foot">Recall → · Precision ↑</div>
-        </Panel>
-        <Panel
-          title="Confusion matrix"
-          meta={<span className="mini-tag">TEST PARTITION</span>}
-        >
-          <div className="confusion">
-            <div />
-            <span>Predicted clear</span>
-            <span>Predicted fraud</span>
-            <span>Actual clear</span>
-            <b>
-              {model.test.confusion_matrix[0][0]}
-              <small>True negative</small>
-            </b>
-            <b className="warning">
-              {model.test.confusion_matrix[0][1]}
-              <small>False positive</small>
-            </b>
-            <span>Actual fraud</span>
-            <b className="warning">
-              {model.test.confusion_matrix[1][0]}
-              <small>False negative</small>
-            </b>
-            <b>
-              {model.test.confusion_matrix[1][1]}
-              <small>True positive</small>
-            </b>
-          </div>
-        </Panel>
-      </div>
-      <ModelDiagnostics key={`${version}-${model.name}`} model={model} />
-      <div className="two-grid">
-        <Panel title="Global feature importance">
-          <div className="padded">
-            {model.feature_importance.slice(0, 10).map((f) => (
-              <div className="importance-row" key={f.feature}>
-                <code>{f.feature}</code>
-                <div>
-                  <i
-                    style={{
-                      width: `${(f.importance / model.feature_importance[0].importance) * 100}%`,
-                    }}
-                  />
-                </div>
-                <span className="mono">{f.importance.toFixed(3)}</span>
-              </div>
-            ))}
-            <p className="muted">
-              Absolute standardized coefficients for logistic regression;
-              impurity / split importance for tree models. These scales are not
-              comparable across algorithms.
-            </p>
-          </div>
-        </Panel>
-        <Panel title="Experiment integrity">
-          <div className="padded">
-            {Object.entries(experiment.partitions).map(([name, p]) => (
-              <div className="detail-row" key={name}>
-                <span>{name}</span>
-                <b>
-                  {p.rows} rows · {p.fraud} fraud
-                </b>
-              </div>
-            ))}
-            <p>
-              Preprocessing is fitted on training data. Candidate parameters and
-              decision thresholds are selected using validation data. Algorithm
-              selection precedes test evaluation.
-            </p>
-            <p className="muted">
-              {experiment.provenance === "synthetic"
-                ? "These results measure an artificial fixture. No ULB benchmark claim is made."
-                : "ULB is anonymized and covers a limited time window. Generalization to live banking systems is unverified."}
-            </p>
-            <code>
-              {new Date(experiment.created_at).toLocaleString()} ·{" "}
-              {experiment.duration_seconds}s
-            </code>
-          </div>
-        </Panel>
-      </div>
-    </>
   );
 }
