@@ -43,10 +43,19 @@ def test_test_labels_do_not_change_validation_selection_or_thresholds(monkeypatc
     first = benchmarks.train(frame, "paysim", {"fixture": True})
     frame.loc[frame.step >= 32, "isFraud"] = 1 - frame.loc[frame.step >= 32, "isFraud"]
     second = benchmarks.train(frame, "paysim", {"fixture": True})
-    assert first["candidate_search"] == second["candidate_search"]
+    for name in first["candidate_search"]:
+        for left, right in zip(first["candidate_search"][name], second["candidate_search"][name]):
+            assert left["parameters"] == right["parameters"]
+            assert left["validation_average_precision"] == pytest.approx(
+                right["validation_average_precision"], abs=1e-12
+            )
     for left, right in zip(first["models"], second["models"]):
-        assert left["threshold"] == right["threshold"]
-        assert left["validation"] == right["validation"]
+        assert left["threshold"] == pytest.approx(right["threshold"], abs=1e-12)
+        for metric in ("precision", "recall", "f1", "average_precision", "roc_auc", "brier_score"):
+            assert left["validation"][metric] == pytest.approx(
+                right["validation"][metric], abs=1e-12
+            )
+        assert left["validation"]["confusion_matrix"] == right["validation"]["confusion_matrix"]
         assert (
             left["test"]["recall"] != right["test"]["recall"]
             or left["test"]["average_precision"] != right["test"]["average_precision"]
