@@ -72,7 +72,7 @@ def validate_frame(df: pd.DataFrame, require_label=False):
     return out
 
 
-def partition_indices(df, split="stratified"):
+def partition_indices(df, split="stratified", seed=SEED):
     """Return disjoint 60/20/20 partitions without fitting any transformation."""
     if split not in {"stratified", "chronological"}:
         raise ValueError("split must be stratified or chronological")
@@ -88,10 +88,10 @@ def partition_indices(df, split="stratified"):
         )
     else:
         train_idx, rest = train_test_split(
-            indices, test_size=0.4, stratify=df.Class, random_state=SEED
+            indices, test_size=0.4, stratify=df.Class, random_state=seed
         )
         val_idx, test_idx = train_test_split(
-            rest, test_size=0.5, stratify=df.Class.iloc[rest], random_state=SEED
+            rest, test_size=0.5, stratify=df.Class.iloc[rest], random_state=seed
         )
         partitions = (train_idx, val_idx, test_idx)
     for idx in partitions:

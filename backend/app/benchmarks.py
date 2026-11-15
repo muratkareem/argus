@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import platform
+import resource
+import sys
 import time
 from datetime import datetime, timezone
 from importlib.metadata import version as package_version
@@ -18,7 +20,20 @@ from sklearn.metrics import average_precision_score
 from sklearn.pipeline import Pipeline
 from xgboost import XGBClassifier
 
-from app.benchmark_data import merge_identity, prepare, preprocessor, read_source
+from app.benchmark_data import (
+    Prepared,
+    merge_identity,
+    prepare,
+    preprocessor,
+    read_paysim,
+    read_source,
+)
+from app.benchmark_reliability import (
+    day_bootstrap,
+    error_analysis,
+    implementation_sha256,
+    temporal_audit,
+)
 from app.ml import (
     SEED,
     inference_latency,
@@ -82,10 +97,10 @@ def confidence_intervals(result):
     }
 
 
-def candidates(ratio):
+def candidates(ratio, seed=SEED):
     return {
         "Logistic Regression": [
-            LogisticRegression(C=c, class_weight="balanced", max_iter=2000, random_state=SEED)
+            LogisticRegression(C=c, class_weight="balanced", max_iter=2000, random_state=seed)
             for c in (0.1, 1.0)
         ],
         "Random Forest": [
@@ -94,7 +109,7 @@ def candidates(ratio):
                 max_depth=d,
                 min_samples_leaf=2,
                 class_weight="balanced_subsample",
-                random_state=SEED,
+                random_state=seed,
                 n_jobs=2,
             )
             for d in (6, 12)
@@ -107,7 +122,7 @@ def candidates(ratio):
                 subsample=0.9,
                 colsample_bytree=0.9,
                 scale_pos_weight=ratio,
-                random_state=SEED,
+                random_state=seed,
                 n_jobs=2,
                 tree_method="hist",
                 eval_metric="logloss",
@@ -117,11 +132,21 @@ def candidates(ratio):
     }
 
 
-def train(frame, dataset_id, source_audit, split="chronological", identity_audit=None):
+def train(
+    frame,
+    dataset_id,
+    source_audit,
+    split="chronological",
+    identity_audit=None,
+    seed=SEED,
+    bootstrap_repeats=0,
+):
     started = time.perf_counter()
-    data = prepare(frame, dataset_id)
+    if bootstrap_repeats and (bootstrap_repeats < 2 or dataset_id != "paysim"):
+        raise ValueError("Day bootstrap requires PaySim and at least two replicates")
+    data = frame if isinstance(frame, Prepared) else prepare(frame, dataset_id)
     partition_frame = pd.DataFrame({"Time": data.time, "Class": data.y})
-    indices = partition_indices(partition_frame, split)
+    indices = partition_indices(partition_frame, split, seed=seed)
     train_idx, val_idx, test_idx = indices
     transform = preprocessor(data)
     x_train = transform.fit_transform(data.x.iloc[train_idx])
@@ -129,7 +154,7 @@ def train(frame, dataset_id, source_audit, split="chronological", identity_audit
     y_train, y_val = data.y.iloc[train_idx], data.y.iloc[val_idx]
     ratio = float((y_train == 0).sum() / y_train.sum())
     winners, search = [], {}
-    for name, estimators in candidates(ratio).items():
+    for name, estimators in candidates(ratio, seed=seed).items():
         print(f"Training {dataset_id}: {name} ({len(train_idx)} train rows)", flush=True)
         fitted, search[name] = [], []
         for estimator in estimators:
@@ -155,10 +180,17 @@ def train(frame, dataset_id, source_audit, split="chronological", identity_audit
     models = []
     feature_names = transform.get_feature_names_out()
     for name, model, threshold, ap, validation_scores, latency, parameters in winners:
-        result = metrics(
-            data.y.iloc[test_idx], model.predict_proba(data.x.iloc[test_idx])[:, 1], threshold
-        )
+        test_scores = model.predict_proba(data.x.iloc[test_idx])[:, 1]
+        result = metrics(data.y.iloc[test_idx], test_scores, threshold)
         result["confidence_intervals"] = confidence_intervals(result)
+        if bootstrap_repeats:
+            result["day_cluster_bootstrap"] = day_bootstrap(
+                data.y.iloc[test_idx],
+                test_scores,
+                data.time.iloc[test_idx],
+                threshold,
+                repeats=bootstrap_repeats,
+            )
         estimator = model.named_steps["classifier"]
         importance = (
             np.abs(estimator.coef_[0])
@@ -187,23 +219,31 @@ def train(frame, dataset_id, source_audit, split="chronological", identity_audit
                 ),
             }
         )
+        if dataset_id == "paysim":
+            models[-1]["test_error_analysis"] = error_analysis(
+                data, test_idx, test_scores, threshold
+            )
+            models[-1]["validation_error_analysis"] = error_analysis(
+                data, val_idx, validation_scores, threshold
+            )
     digest = hashlib.sha256(data.fingerprints.to_numpy().tobytes()).hexdigest()
     created_at = datetime.now(timezone.utc)
     descriptor = next(item for item in DATASETS if item["id"] == dataset_id)
     return {
         "report_schema_version": 3,
+        "implementation_sha256": implementation_sha256(),
         "dataset_id": dataset_id,
         "data_kind": descriptor["data_kind"],
         "execution_status": "verified",
         "provenance": dataset_id,
         "version": dataset_id + "-" + created_at.strftime("%Y%m%dT%H%M%S%fZ") + "-" + digest[:8],
         "created_at": created_at.isoformat(),
-        "seed": SEED,
+        "seed": seed,
         "split": split,
         "source": {**descriptor, **source_audit},
         "identity_source": identity_audit,
         "dataset_sha256": digest,
-        "raw_rows": len(frame),
+        "raw_rows": len(data.x) + data.duplicates_removed,
         "rows": len(data.x),
         "fraud_rows": int(data.y.sum()),
         "duplicates_removed": data.duplicates_removed,
@@ -235,8 +275,17 @@ def train(frame, dataset_id, source_audit, split="chronological", identity_audit
         "selection_rationale": "Highest validation AP, ties lower warm single p95 latency; "
         "candidate AP ties keep first declared candidate. Threshold maximizes validation F1.",
         "candidate_search": search,
+        "temporal_audit": {
+            name: temporal_audit(data, idx)
+            for name, idx in zip(("train", "validation", "test"), indices)
+        },
         "models": models,
         "duration_seconds": round(time.perf_counter() - started, 3),
+        "resources": {
+            "process_lifetime_peak_rss_mib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            / (1024**2 if sys.platform == "darwin" else 1024),
+            "measurement": "process lifetime high-water RSS; sequential study runs share this process, not per-run allocation",
+        },
         "environment": {
             "python": platform.python_version(),
             "operating_system": platform.platform(),
@@ -245,7 +294,7 @@ def train(frame, dataset_id, source_audit, split="chronological", identity_audit
             **{p: package_version(p) for p in ("pandas", "numpy", "scikit-learn", "xgboost")},
         },
         "limitations": "Independent in-domain training, not cross-dataset transfer validation. "
-        "Single seed; uncalibrated scores; prevalence and feature availability differ between datasets. "
+        "Each report is one seed; uncalibrated scores; prevalence and feature availability differ between datasets. "
         "Chronological evaluation does not isolate recurring entities. Sampling can omit rare patterns. "
         "PaySim is a simulator, not evidence of real credit card fraud performance. "
         "IEEE feature availability at decision time requires domain review.",
@@ -335,12 +384,17 @@ def main():
     parser.add_argument("--csv", type=Path, required=True)
     parser.add_argument("--identity", type=Path)
     parser.add_argument("--max-rows", type=int)
+    parser.add_argument("--seed", type=int, default=SEED)
+    parser.add_argument("--bootstrap-repeats", type=int, default=0)
     parser.add_argument("--split", choices=["stratified", "chronological"], default="chronological")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
         parser.error("Output already exists; refusing to overwrite a completed report")
-    frame, audit = read_source(args.csv, args.max_rows)
+    if args.dataset == "paysim" and args.max_rows is None:
+        frame, audit = read_paysim(args.csv)
+    else:
+        frame, audit = read_source(args.csv, args.max_rows, seed=args.seed)
     identity_audit = None
     if args.identity:
         if args.dataset != "ieee_cis":
@@ -352,7 +406,15 @@ def main():
                 "rows": len(identity),
             }
         frame = merge_identity(frame, identity)
-    report = train(frame, args.dataset, audit, args.split, identity_audit)
+    report = train(
+        frame,
+        args.dataset,
+        audit,
+        args.split,
+        identity_audit,
+        seed=args.seed,
+        bootstrap_repeats=args.bootstrap_repeats,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("x") as out:
         json.dump(report, out, indent=2, allow_nan=False)

@@ -30,8 +30,8 @@ def test_chronological_partitions_keep_hours_together_and_signatures_disjoint():
 def test_test_labels_do_not_change_validation_selection_or_thresholds(monkeypatch):
     original_candidates = benchmarks.candidates
 
-    def small_candidates(ratio):
-        candidates = original_candidates(ratio)
+    def small_candidates(ratio, seed=42):
+        candidates = original_candidates(ratio, seed=seed)
         for estimators in candidates.values():
             for estimator in estimators:
                 if "n_estimators" in estimator.get_params():
@@ -125,8 +125,8 @@ def test_corrupt_report_is_excluded_without_hiding_valid_evidence(tmp_path, corr
 def test_ieee_training_executes_all_algorithms_on_explicit_unit_fixture(monkeypatch):
     original = benchmarks.candidates
 
-    def tiny(ratio):
-        choices = original(ratio)
+    def tiny(ratio, seed=42):
+        choices = original(ratio, seed=seed)
         for estimators in choices.values():
             for estimator in estimators:
                 if "n_estimators" in estimator.get_params():

@@ -59,11 +59,11 @@ class Prepared:
     excluded: list[str]
 
 
-def read_source(path: Path, max_rows: int | None = None):
+def read_source(path: Path, max_rows: int | None = None, seed=SEED):
     """Uniform priority sample over the entire CSV, independent of labels/time."""
     if max_rows is not None and max_rows < 30:
         raise ValueError("max_rows must be at least 30")
-    rng = np.random.default_rng(SEED)
+    rng = np.random.default_rng(seed)
     frames, priorities = [], np.empty(0)
     rows = fraud = 0
     kept = None
@@ -95,7 +95,7 @@ def read_source(path: Path, max_rows: int | None = None):
         else "uniform smallest independent random priorities over full source; before splitting",
         "requested_max_rows": max_rows,
         "sample_rows": len(frame),
-        "seed": SEED,
+        "seed": seed,
     }
 
 
@@ -208,3 +208,61 @@ def preprocessor(data):
         ],
         sparse_threshold=1.0,
     )
+
+
+def read_paysim(path: Path, chunksize=100_000):
+    """Validate all raw events in bounded chunks; retain no balance/ID columns."""
+    parts = []
+    rows = fraud = 0
+    for chunk in pd.read_csv(path, chunksize=chunksize, dtype=str):
+        part = prepare(chunk, "paysim")
+        rows += len(chunk)
+        fraud += int(pd.to_numeric(chunk.isFraud).sum())
+        part.x["type"] = pd.Categorical(part.x.type, categories=sorted(PAYSIM_TYPES))
+        parts.append(part)
+    if not parts:
+        raise ValueError("Empty source CSV")
+    data = Prepared(
+        pd.concat([p.x for p in parts], ignore_index=True),
+        pd.concat([p.y for p in parts], ignore_index=True),
+        pd.concat([p.time for p in parts], ignore_index=True),
+        pd.concat([p.fingerprints for p in parts], ignore_index=True),
+        parts[0].numeric,
+        parts[0].categorical,
+        0,
+        parts[0].excluded,
+    )
+    del parts
+    # Sorting signatures bounds auxiliary memory and detects cross-chunk conflicts.
+    fingerprints = data.fingerprints.to_numpy()
+    order = np.argsort(fingerprints, kind="stable")
+    same = fingerprints[order[1:]] == fingerprints[order[:-1]]
+    if (same & (data.y.to_numpy()[order[1:]] != data.y.to_numpy()[order[:-1]])).any():
+        raise ValueError("Conflicting labels for identical transactions across chunks")
+    keep = np.ones(len(data.x), dtype=bool)
+    keep[order[1:][same]] = False
+    if not keep.all():
+        data.x = data.x.loc[keep].reset_index(drop=True)
+        data.y = data.y.loc[keep].reset_index(drop=True)
+        data.time = data.time.loc[keep].reset_index(drop=True)
+        data.fingerprints = data.fingerprints.loc[keep].reset_index(drop=True)
+    data.duplicates_removed = rows - len(data.x)
+    with path.open("rb") as source:
+        digest = hashlib.file_digest(source, "sha256").hexdigest()
+    return data, {
+        "csv_sha256": digest,
+        "csv_bytes": path.stat().st_size,
+        "rows": rows,
+        "fraud_rows": fraud,
+        "sampling": "full dataset",
+        "requested_max_rows": None,
+        "sample_rows": rows,
+        "reader": "chunked raw schema validation and fingerprinting; compact predictors only",
+        "chunksize": chunksize,
+        "prepared_bytes": int(
+            data.x.memory_usage(deep=True).sum()
+            + data.y.memory_usage(deep=True)
+            + data.time.memory_usage(deep=True)
+            + data.fingerprints.memory_usage(deep=True)
+        ),
+    }

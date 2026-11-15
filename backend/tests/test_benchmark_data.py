@@ -99,3 +99,26 @@ def test_uniform_sampling_reproducible_scans_complete_source(tmp_path):
     assert len(first) == 30 and first.step.astype(int).max() > 30
     assert len(audit["csv_sha256"]) == 64
     assert path.read_text().startswith("step,")
+
+
+def test_chunked_paysim_matches_full_adapter_and_catches_cross_chunk_conflicts(tmp_path):
+    from app.benchmark_data import read_paysim
+
+    raw = paysim_fixture()
+    raw = pd.concat([raw, raw.iloc[[0, 5]]], ignore_index=True)
+    path = tmp_path / "raw.csv"
+    raw.to_csv(path, index=False)
+    expected = prepare(read_source(path)[0], "paysim")
+    streamed, audit = read_paysim(path, chunksize=23)
+    pd.testing.assert_frame_equal(
+        streamed.x.assign(type=streamed.x.type.astype(object)), expected.x
+    )
+    pd.testing.assert_series_equal(streamed.fingerprints, expected.fingerprints)
+    pd.testing.assert_series_equal(streamed.y, expected.y)
+    assert streamed.duplicates_removed == 2 and audit["rows"] == 122
+    assert audit["fraud_rows"] == int(raw.isFraud.sum())
+    assert audit["prepared_bytes"] < 10000
+    raw.loc[120, "isFraud"] = 1 - raw.loc[120, "isFraud"]
+    raw.to_csv(path, index=False)
+    with pytest.raises(ValueError, match="Conflicting.*across chunks"):
+        read_paysim(path, chunksize=23)
