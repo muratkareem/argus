@@ -83,8 +83,15 @@ describe("dataset evidence selection", () => {
     expect(screen.getByText(/No executed experiments/)).toBeVisible();
   });
   it("compares only supplied reports with test sizes and domain caveats", async () => {
-    const fixture = {
+    const fixture: Experiment = {
       version: "test-only",
+      provenance: "ulb",
+      seed: 42,
+      rows: 100,
+      fraud_rows: 2,
+      duplicates_removed: 0,
+      created_at: "2026-01-01T00:00:00Z",
+      duration_seconds: 0,
       dataset_id: "ulb",
       data_kind: "real",
       split: "chronological",
@@ -93,10 +100,25 @@ describe("dataset evidence selection", () => {
       models: [
         {
           name: "Fixture model",
-          test: { average_precision: 0.1234, recall: 0.5 },
+          threshold: 0.5,
+          validation_average_precision: 0.1,
+          feature_importance: [],
+          test: {
+            precision: 0.5,
+            recall: 0.5,
+            f1: 0.5,
+            average_precision: 0.1234,
+            roc_auc: 0.5,
+            false_positive_rate: 1 / 98,
+            confusion_matrix: [
+              [97, 1],
+              [1, 1],
+            ],
+            pr_curve: [],
+          },
         },
       ],
-    } as Experiment;
+    };
     vi.mocked(api).mockImplementation(async (path) =>
       path === "/models"
         ? emptyWorkspace
