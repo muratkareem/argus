@@ -24,6 +24,13 @@ export type Case = {
   notes: { id: number; body: string; created_at: string }[];
 };
 export type Metrics = {
+  day_cluster_bootstrap?: {
+    method: string;
+    clusters: number;
+    repeats: number;
+    intervals: Record<string, [number, number] | null>;
+    limitation: string;
+  };
   confidence_intervals?: {
     method: string;
     precision: [number, number] | null;

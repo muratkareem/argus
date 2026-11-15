@@ -91,6 +91,7 @@ export default function Laboratory({
             <thead>
               <tr>
                 <th>Dataset / split</th>
+                <th>Scope / seed</th>
                 <th>Validation-selected model</th>
                 <th>Test rows / fraud</th>
                 <th>Test AP</th>
@@ -104,6 +105,9 @@ export default function Laboratory({
                   <tr key={e.version}>
                     <td>
                       {e.dataset_id} · {e.data_kind} · {e.split}
+                    </td>
+                    <td>
+                      {e.rows.toLocaleString()} rows · seed {e.seed}
                     </td>
                     <td>{m.name}</td>
                     <td>
@@ -139,7 +143,14 @@ export default function Laboratory({
             active_version:
               dataset === "workspace"
                 ? models.active_version
-                : experiments[0].version,
+                : (
+                    experiments.find(
+                      (e) =>
+                        e.source?.sampling === "full dataset" &&
+                        e.seed === 42 &&
+                        e.split === "chronological",
+                    ) ?? experiments[0]
+                  ).version,
             experiments,
           }}
         />
@@ -186,7 +197,8 @@ function ExperimentReview({ models }: { models: Models }) {
           >
             {models.experiments.map((e) => (
               <option key={e.version} value={e.version}>
-                {e.provenance} · {e.version}
+                {e.provenance} · {e.split} · {e.rows.toLocaleString()} rows ·
+                seed {e.seed} · {e.version}
               </option>
             ))}
           </select>
@@ -306,6 +318,24 @@ function ExperimentReview({ models }: { models: Models }) {
           {model.test.confidence_intervals.recall?.map(percent).join("–") ??
             "undefined"}
           . {model.test.confidence_intervals.limitation}
+        </p>
+      )}
+      {model.test.day_cluster_bootstrap && (
+        <p className="muted">
+          Conditional day-cluster 95% intervals ·{" "}
+          {model.test.day_cluster_bootstrap.clusters} days ·{" "}
+          {model.test.day_cluster_bootstrap.repeats} replicates:
+          {["average_precision", "f1", "roc_auc"].map((key) => (
+            <span key={key}>
+              {" "}
+              {key.replaceAll("_", " ")} [
+              {model.test.day_cluster_bootstrap?.intervals[key]
+                ?.map((v) => v.toFixed(4))
+                .join("–") ?? "undefined"}
+              ] ·
+            </span>
+          ))}
+          {model.test.day_cluster_bootstrap.limitation}
         </p>
       )}
       {view === "summary" && (

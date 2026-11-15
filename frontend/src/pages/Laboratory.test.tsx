@@ -129,6 +129,7 @@ describe("dataset evidence selection", () => {
     const table = screen.getByRole("table");
     expect(within(table).getByText("0.1234")).toBeVisible();
     expect(within(table).getByText("100 / 2")).toBeVisible();
+    expect(within(table).getByText("100 rows · seed 42")).toBeVisible();
     expect(
       screen.getByText(/not cross-dataset transfer validation/),
     ).toBeVisible();
