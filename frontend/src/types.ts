@@ -24,6 +24,12 @@ export type Case = {
   notes: { id: number; body: string; created_at: string }[];
 };
 export type Metrics = {
+  confidence_intervals?: {
+    method: string;
+    precision: [number, number] | null;
+    recall: [number, number] | null;
+    limitation: string;
+  };
   precision: number;
   recall: number;
   f1: number;
@@ -71,7 +77,31 @@ export type Model = {
     }[];
   };
 };
+export type BenchmarkCatalog = {
+  datasets: {
+    id: string;
+    name: string;
+    data_kind: string;
+    status: string;
+    source: string;
+    license: string;
+    blocker: string | null;
+  }[];
+  experiments: Experiment[];
+  report_errors: { file: string; error: string }[];
+  interpretation: string;
+};
 export type Experiment = {
+  dataset_id?: string;
+  data_kind?: string;
+  execution_status?: string;
+  limitations?: string;
+  preprocessing?: {
+    numeric: string[];
+    categorical: string[];
+    excluded: string[];
+  };
+  source?: { sampling: string; rows: number; fraud_rows: number };
   version: string;
   provenance: string;
   split: string;

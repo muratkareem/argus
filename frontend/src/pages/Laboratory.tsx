@@ -12,7 +12,7 @@ import {
 import { api, download, percent } from "../api";
 import { Panel, Empty, Loading } from "../ui";
 import { ModelDiagnostics } from "./ModelDiagnostics";
-import type { Models } from "../types";
+import type { Models, BenchmarkCatalog } from "../types";
 const tipStyle = {
   background: "#141e2c",
   border: "1px solid #2b3949",
@@ -27,23 +27,143 @@ export default function Laboratory({
   revision: number;
   fail: (e: unknown) => void;
 }) {
-  const [models, setModels] = useState<Models | null>(null),
-    [version, setVersion] = useState(""),
-    [selected, setSelected] = useState(""),
-    [view, setView] = useState("summary");
+  const [models, setModels] = useState<Models | null>(null);
+  const [catalog, setCatalog] = useState<BenchmarkCatalog | null>(null);
+  const [dataset, setDataset] = useState("workspace");
   useEffect(() => {
-    api<Models>("/models")
-      .then((d) => {
-        setModels(d);
-        setVersion(d.active_version ?? "");
+    let active = true;
+    Promise.all([api<Models>("/models"), api<BenchmarkCatalog>("/benchmarks")])
+      .then(([workspace, benchmarks]) => {
+        if (active) {
+          setModels(workspace);
+          setCatalog(benchmarks);
+        }
       })
       .catch(fail);
+    return () => {
+      active = false;
+    };
   }, [revision]);
+  if (!models || !catalog) return <Loading />;
+  const descriptor = catalog.datasets.find((d) => d.id === dataset);
+  const experiments =
+    dataset === "workspace"
+      ? models.experiments
+      : catalog.experiments.filter((e) => e.dataset_id === dataset);
+  return (
+    <>
+      <label className="field">
+        Dataset
+        <select value={dataset} onChange={(e) => setDataset(e.target.value)}>
+          <option value="workspace">Active workspace experiments</option>
+          {catalog.datasets.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name} · {d.data_kind} · {d.status.replaceAll("_", " ")}
+            </option>
+          ))}
+        </select>
+      </label>
+      {descriptor && (
+        <p className="muted">
+          <a href={descriptor.source} target="_blank" rel="noreferrer">
+            Official source
+          </a>{" "}
+          · {descriptor.license}.{" "}
+          {descriptor.data_kind === "synthetic"
+            ? "Simulation benchmark; not real transaction evidence."
+            : "Real transaction dataset."}
+        </p>
+      )}
+      <details className="padded">
+        <summary>Verified dataset comparison</summary>
+        <p>
+          {catalog.interpretation} Scores differ in prevalence, feature
+          availability and split design; they do not establish a ranking across
+          domains.
+        </p>
+        <div
+          className="table-wrap"
+          role="region"
+          aria-label="Verified dataset comparison"
+          tabIndex={0}
+        >
+          <table>
+            <thead>
+              <tr>
+                <th>Dataset / split</th>
+                <th>Validation-selected model</th>
+                <th>Test rows / fraud</th>
+                <th>Test AP</th>
+                <th>Test recall</th>
+              </tr>
+            </thead>
+            <tbody>
+              {catalog.experiments.map((e) => {
+                const m = e.models.find((m) => m.name === e.selected_model)!;
+                return (
+                  <tr key={e.version}>
+                    <td>
+                      {e.dataset_id} · {e.data_kind} · {e.split}
+                    </td>
+                    <td>{m.name}</td>
+                    <td>
+                      {e.partitions.test.rows.toLocaleString()} /{" "}
+                      {e.partitions.test.fraud}
+                    </td>
+                    <td>{m.test.average_precision.toFixed(4)}</td>
+                    <td>{percent(m.test.recall)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {catalog.datasets
+          .filter((d) => d.status !== "evaluated")
+          .map((d) => (
+            <p key={d.id}>
+              {d.name}: {d.status.replaceAll("_", " ")}. {d.blocker}
+            </p>
+          ))}
+      </details>
+      {catalog.report_errors.length > 0 && (
+        <p role="alert">
+          {catalog.report_errors.length} invalid benchmark reports excluded.
+          Check /api/v1/benchmarks report_errors.
+        </p>
+      )}
+      {experiments.length ? (
+        <ExperimentReview
+          key={dataset}
+          models={{
+            active_version:
+              dataset === "workspace"
+                ? models.active_version
+                : experiments[0].version,
+            experiments,
+          }}
+        />
+      ) : (
+        <Empty>
+          {descriptor?.blocker ?? "No executed experiments for this dataset."}{" "}
+          No metrics are claimed. See docs/DATASETS.md for authorized
+          reproduction commands.
+        </Empty>
+      )}
+    </>
+  );
+}
+
+function ExperimentReview({ models }: { models: Models }) {
+  const [version, setVersion] = useState(
+      models.active_version ?? models.experiments[0]?.version ?? "",
+    ),
+    [selected, setSelected] = useState(""),
+    [view, setView] = useState("summary");
   const experiment = models?.experiments.find((e) => e.version === version),
     model =
       experiment?.models.find((m) => m.name === selected) ??
       experiment?.models.find((m) => m.name === experiment.selected_model);
-  if (!models) return <Loading />;
   if (!experiment || !model)
     return (
       <Empty>
@@ -169,6 +289,25 @@ export default function Laboratory({
           </button>
         ))}
       </div>
+      {experiment.source && (
+        <p className="muted">
+          Source: {experiment.source.rows.toLocaleString()} rows /{" "}
+          {experiment.source.fraud_rows.toLocaleString()} fraud. Evaluation uses{" "}
+          {experiment.rows.toLocaleString()} rows: {experiment.source.sampling}.{" "}
+          {experiment.limitations}
+        </p>
+      )}
+      {model.test.confidence_intervals && (
+        <p className="muted">
+          95% Wilson intervals · precision{" "}
+          {model.test.confidence_intervals.precision?.map(percent).join("–") ??
+            "undefined (no alerts)"}{" "}
+          · recall{" "}
+          {model.test.confidence_intervals.recall?.map(percent).join("–") ??
+            "undefined"}
+          . {model.test.confidence_intervals.limitation}
+        </p>
+      )}
       {view === "summary" && (
         <div className="two-grid">
           <Panel title={`${model.name} · Precision-recall`}>
@@ -276,10 +415,21 @@ export default function Laboratory({
                 Algorithm selection precedes test evaluation.
               </p>
               <p className="muted">
-                {experiment.provenance === "synthetic"
-                  ? "These results measure an artificial fixture. No ULB benchmark claim is made."
-                  : "ULB is anonymized and covers a limited time window. Generalization to live banking systems is unverified."}
+                {experiment.limitations ??
+                  (experiment.provenance === "synthetic"
+                    ? "These results measure an artificial fixture. No ULB benchmark claim is made."
+                    : "ULB is anonymized and covers a limited time window. Generalization to live banking systems is unverified.")}
               </p>
+              {experiment.preprocessing && (
+                <p className="muted">
+                  Predictors:{" "}
+                  {[
+                    ...experiment.preprocessing.numeric,
+                    ...experiment.preprocessing.categorical,
+                  ].join(", ")}
+                  . Excluded: {experiment.preprocessing.excluded.join(", ")}.
+                </p>
+              )}
               <code>
                 {new Date(experiment.created_at).toLocaleString()} ·{" "}
                 {experiment.duration_seconds}s

@@ -571,3 +571,61 @@ test("mobile model comparison remains keyboard-scrollable", async ({
     ),
   ).toBeTruthy();
 });
+
+test("multi-dataset laboratory shows published evidence and honest access blockers", async ({
+  page,
+  request,
+}) => {
+  const before = await (
+    await request.get("http://127.0.0.1:8000/api/v1/models")
+  ).json();
+  const catalog = await (
+    await request.get("http://127.0.0.1:8000/api/v1/benchmarks")
+  ).json();
+  expect(catalog.report_errors).toEqual([]);
+  expect(
+    catalog.experiments.filter(
+      (e: { dataset_id: string }) => e.dataset_id === "ulb",
+    ),
+  ).toHaveLength(2);
+  await page.goto("/#laboratory");
+  await page
+    .getByRole("combobox", { name: "Dataset", exact: true })
+    .selectOption("paysim");
+  await expect(
+    page.getByText("Simulation benchmark; not real transaction evidence.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Model comparison results" }),
+  ).toBeVisible();
+  await expect(page.getByText(/95% Wilson intervals/)).toBeVisible();
+  await page.getByText("Verified dataset comparison", { exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Verified dataset comparison" }),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Dataset", exact: true })
+    .selectOption("ieee_cis");
+  await expect(page.getByText(/No metrics are claimed/)).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Model comparison results" }),
+  ).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("combobox", { name: "Dataset", exact: true })
+    .selectOption("ulb");
+  await expect(
+    page.getByRole("region", { name: "Model comparison results" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
+  const after = await (
+    await request.get("http://127.0.0.1:8000/api/v1/models")
+  ).json();
+  expect(after).toEqual(before);
+});
