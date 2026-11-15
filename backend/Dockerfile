@@ -6,6 +6,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 COPY backend ./backend
 COPY scripts ./scripts
+COPY docs/research ./docs/research
 RUN useradd --create-home argus && mkdir -p /app/ml/artifacts && chown -R argus:argus /app
 ENV PATH="/app/.venv/bin:$PATH" PYTHONPATH=/app/backend
 USER argus

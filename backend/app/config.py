@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     )
     database_url: str = "sqlite:///./argus.db"
     artifact_dir: Path = Path("ml/artifacts")
+    benchmark_dir: Path = Path(__file__).resolve().parents[2] / "docs" / "research"
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     max_upload_bytes: int = 192 * 1024 * 1024
     api_key: SecretStr | None = Field(default=None, repr=False)

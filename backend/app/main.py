@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from app.benchmarks import catalog
 from app.config import Settings
 from app.data import ingest
 from app.db import (
@@ -630,6 +631,10 @@ def create_app(settings=None):
                 .where(Case.status.in_(["Open", "In Review", "Escalated"]))
             ),
         }
+
+    @app.get("/api/v1/benchmarks")
+    def benchmarks():
+        return catalog(settings.benchmark_dir)
 
     @app.get("/api/v1/models")
     def models():

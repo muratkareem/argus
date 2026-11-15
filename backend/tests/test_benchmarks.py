@@ -1,0 +1,95 @@
+import json
+
+import numpy as np
+import pandas as pd
+import pytest
+from app import benchmarks
+from app.benchmark_data import prepare
+from app.ml import partition_indices
+from test_benchmark_data import paysim_fixture
+
+
+def test_confidence_intervals_handle_zero_denominator_and_boundaries():
+    assert benchmarks.wilson(0, 0) is None
+    lower, upper = benchmarks.wilson(8, 10)
+    assert lower == pytest.approx(0.49016, abs=0.0001)
+    assert upper == pytest.approx(0.94332, abs=0.0001)
+    assert benchmarks.wilson(0, 20)[0] == 0
+    assert benchmarks.wilson(20, 20)[1] <= 1
+
+
+def test_chronological_partitions_keep_hours_together_and_signatures_disjoint():
+    data = prepare(paysim_fixture(), "paysim")
+    idx = partition_indices(pd.DataFrame({"Time": data.time, "Class": data.y}), "chronological")
+    for left, right in zip(idx, idx[1:]):
+        assert data.time.iloc[left].max() < data.time.iloc[right].min()
+        assert not set(data.fingerprints.iloc[left]) & set(data.fingerprints.iloc[right])
+    assert sum(map(len, idx)) == len(data.x)
+
+
+def test_test_labels_do_not_change_validation_selection_or_thresholds(monkeypatch):
+    original_candidates = benchmarks.candidates
+
+    def small_candidates(ratio):
+        candidates = original_candidates(ratio)
+        for estimators in candidates.values():
+            for estimator in estimators:
+                if "n_estimators" in estimator.get_params():
+                    estimator.set_params(n_estimators=5)
+        return candidates
+
+    monkeypatch.setattr(benchmarks, "candidates", small_candidates)
+    frame = paysim_fixture()
+    first = benchmarks.train(frame, "paysim", {"fixture": True})
+    frame.loc[frame.step >= 32, "isFraud"] = 1 - frame.loc[frame.step >= 32, "isFraud"]
+    second = benchmarks.train(frame, "paysim", {"fixture": True})
+    assert first["candidate_search"] == second["candidate_search"]
+    for left, right in zip(first["models"], second["models"]):
+        assert left["threshold"] == right["threshold"]
+        assert left["validation"] == right["validation"]
+        assert (
+            left["test"]["recall"] != right["test"]["recall"]
+            or left["test"]["average_precision"] != right["test"]["average_precision"]
+        )
+    assert (
+        first["partitions"]["train"]["time_maximum"] < first["partitions"]["test"]["time_minimum"]
+    )
+    assert first["preprocessing"]["fit_partition"] == "train only"
+    assert np.isfinite(first["models"][0]["inference_latency"]["single_p95_ms"])
+    json.dumps(first, allow_nan=False)
+
+
+def test_catalog_publishes_real_reports_without_altering_ulb_artifacts():
+    payload = benchmarks.catalog()
+    assert {d["id"] for d in payload["datasets"]} == {"ulb", "ieee_cis", "paysim"}
+    ulb = [r for r in payload["experiments"] if r["dataset_id"] == "ulb"]
+    assert len(ulb) == 2
+    assert {r["split"] for r in ulb} == {"stratified", "chronological"}
+    assert not payload["report_errors"]
+    assert all(r["data_kind"] == "real" for r in ulb)
+    assert all("confidence_intervals" in m["test"] for r in ulb for m in r["models"])
+
+
+def test_catalog_rejects_incomplete_or_invalid_reports(tmp_path):
+    directory = tmp_path / "benchmarks"
+    directory.mkdir()
+    (directory / "fake.json").write_text(
+        json.dumps({"dataset_id": "paysim", "execution_status": "pending"})
+    )
+    payload = benchmarks.catalog(tmp_path)
+    assert payload["experiments"] == []
+    assert len(payload["report_errors"]) == 1
+    assert (
+        next(d for d in payload["datasets"] if d["id"] == "ieee_cis")["status"] == "access_required"
+    )
+
+
+def test_benchmark_api_is_independent_of_active_model_and_preserves_contract(client):
+    before = client.get("/api/v1/models").json()
+    response = client.get("/api/v1/benchmarks")
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["datasets"]) == 3 and not payload["report_errors"]
+    assert any(r["dataset_id"] == "ulb" for r in payload["experiments"])
+    assert client.get("/api/v1/models").json() == before
+    assert set(before) == {"active_version", "experiments"}
