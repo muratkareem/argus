@@ -188,6 +188,45 @@ versions: [stratified report](docs/research/ulb-stratified-evaluation.json),
 The measured training runs took 26.0 and 28.4 seconds on this Apple Silicon host
 with two estimator threads; other environments will differ.
 
+### Multi-dataset evaluation
+
+The Laboratory's **Dataset** selector shows verified reports and source/access
+status independently of active workspace models. ULB artifacts are preserved;
+new offline runs never activate or overwrite production models.
+
+| Dataset / split | Scope | Validation-selected model | Test precision | Test recall | Test F1 | Test AP | Test ROC-AUC |
+|---|---|---|---:|---:|---:|---:|---:|
+| ULB · stratified · real | Full deduplicated source | XGBoost | .9474 | .7579 | .8421 | .8069 | .9793 |
+| ULB · chronological · real | Full deduplicated source | Logistic Regression | .9423 | .6622 | .7778 | .7475 | .9818 |
+| PaySim · stratified · synthetic | Uniform 200k sample, 241 frauds | XGBoost | .4242 | .2917 | .3457 | .2707 | .9157 |
+| PaySim · chronological · synthetic | Same 200k sample | XGBoost | 1.0000 | .1406 | .2466 | .2238 | .8917 |
+| IEEE-CIS · real | Integration complete; official download HTTP401 | **Not executed** | — | — | — | — | — |
+
+All three algorithms are measured per executed dataset/split. PaySim's full CSV
+was downloaded from its author-linked official Kaggle source: 6,362,620 synthetic
+records / 8,213 frauds. Sampling scans the entire CSV, independently of labels/time.
+Balances, policy flags and raw IDs are excluded; test partitions contain 48 and 128
+frauds, respectively. Chronological validation has only 17 frauds; precision 1.0
+means 18/18 alerts and **low recall**, not robust fraud prevention. Reports include
+Wilson 95% precision/recall intervals and measured inference latency. No ULB
+retraining or redownload was needed.
+
+![Measured AP by dataset and split; independently trained models](docs/research/benchmarks/comparison.png)
+
+**Independent in-domain training is not cross-dataset transfer validation.**
+Prevalence, feature availability and domains differ; this table does not rank
+models across domains. IEEE-CIS requires authorized Kaggle login and competition
+rule acceptance; no replacement data or fabricated metrics were used.
+
+- [Dataset schemas, official sources, licenses and exact reproduction commands](docs/DATASETS.md#multi-dataset-offline-evaluation)
+- [Experimental protocol, feature exclusions and uncertainty limitations](docs/ML_METHODOLOGY.md#independent-multi-dataset-protocol-15-november-2026)
+- [PaySim stratified JSON](docs/research/benchmarks/paysim-stratified.json) · [chronological JSON](docs/research/benchmarks/paysim-chronological.json) · [download/checksum evidence](docs/research/paysim-source.json)
+- [IEEE-CIS access blocker](docs/research/ieee-cis-access.json)
+
+PaySim attribution: E. A. Lopez-Rojas, A. Elmir, S. Axelsson, EMSS 2016;
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). ULB attribution:
+Worldline / ULB, ODbL/DbCL. [Full notices](docs/DATASET_LICENSE.md).
+
 ### Actual synthetic research run
 
 The following was measured on the seeded **artificial fixture**, not ULB, and

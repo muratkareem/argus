@@ -125,9 +125,9 @@ learnable feature shifts and are useful for software verification only.
 The ML Laboratory reads server-owned report JSON; it never synthesizes metrics.
 Repeated runs retain versions; scores are reproducible with the locked dependency
 versions and seed, allowing for platform floating-point differences. Timestamps
-and measured durations will vary. Confidence intervals, fitted probability
-calibration, broader search, external validation and drift monitoring remain
-future research work.
+and measured durations will vary. The external benchmark extension below adds
+conditional precision/recall confidence intervals. Fitted probability calibration,
+multi-seed uncertainty, true transfer validation and drift monitoring remain future work.
 
 Current-format training writes immutable version directories and atomically
 activates a manifest containing a model SHA-256 checksum. Predictor verifies the
@@ -163,3 +163,88 @@ The interactive database may include training, validation and test rows from an
 imported full CSV. Dashboard labeled-data detection rate is therefore **not** an
 unseen-test metric. Only the Laboratory's saved held-out reports support the
 benchmark claims above. Synthetic and ULB score versions remain separately labeled.
+
+## Independent multi-dataset protocol (15 November 2026)
+
+`app.benchmark_data` and `app.benchmarks` implement external offline experiments;
+`app.ml` and all existing ULB models are preserved. This is **independent in-domain
+training and evaluation**, not transferring a ULB-trained model to another
+dataset. Features and domains differ, so neither AP comparisons nor pooled data
+establish cross-dataset generalization. True transfer validation would require a
+predeclared shared representation, frozen source-trained model, untouched target
+labels and appropriate domain-shift analysis; none is claimed.
+
+External adapters require labeled schemas; label-independent raw event signatures
+remove duplicate events before splitting and reject conflicting labels. PaySim
+retains distinct event IDs for deduplication only, whereas IEEE excludes unique
+TransactionID from signatures. Signatures use pandas 64-bit hashes (not privacy
+protection); report digests use SHA-256 over those fingerprints. Identity joining
+is one-to-one. Neither target nor post-outcome balance/policy outputs enter PaySim
+predictors. Dataset-specific field decisions and official access terms are in
+[DATASETS.md](DATASETS.md).
+
+Both external split modes reuse the tested 60/20/20 partition logic and seed 42.
+Chronological boundaries keep equal timestamps/hours together, so exact partition
+percentages can vary. Both classes must occur in each partition. Numeric missing
+values use **training medians** (all-missing columns retained as zero), followed
+by training StandardScaler. Categories use constant missing values and training
+one-hot encoding capped at 32 levels per field; unknown values enter a learned
+infrequent bucket if present, otherwise all zeros. No target encoding, global
+imputation, oversampling or test-dependent feature selection is performed.
+
+Each algorithm uses the same two-candidate validation grid described above
+(LR C=.1/1; RF depths 6/12; XGB depths 3/5, 100 trees each). Both numeric and one-hot
+features enter all three algorithms; class weights/negative-positive ratio use
+training labels only. Validation AP selects parameters; exact candidate ties keep
+the first declared candidate. Validation F1 selects thresholds. Validation AP
+selects the algorithm; exact algorithm ties use measured warm single-record p95.
+Test features are transformed and scored only after this choice. Reports retain
+all candidates' validation AP and selected candidates' parameters/test metrics.
+No external fitted model is activated or serialized by this report-only runner.
+
+All required metrics, confusion matrices, PR/ROC/calibration curves, Brier score,
+validation threshold profiles and timings are measured, reusing the ULB metric
+implementation. External latency includes fitted feature preprocessing and
+`predict_proba`, excludes CSV loading/adaptation, API/network/database/SHAP, and
+uses validation inputs. These are single-host sequential timings, not cross-host
+performance rankings. Legacy ULB measurements remain exactly as recorded.
+
+### Confidence intervals and limitations
+
+The API and external reports provide **95% Wilson binomial intervals for test
+precision and recall**, conditional on the fitted model and validation-selected
+threshold. Undefined precision (no positive predictions) has a null interval.
+These intervals assume independent trials; recurring entities, simulator dynamics
+and temporal dependence can make them too narrow. They exclude uncertainty from
+training, model/threshold selection, and sampling. No F1/AP/ROC-AUC intervals or
+statistical superiority/significance claim is made. Archived ULB metrics are
+unchanged; Wilson intervals are derived from their saved confusion matrices at
+read time, without retraining or accessing raw test predictions.
+
+The seed-42 PaySim sample has 241 positives. Stratified train/validation/test
+counts are 145/48/48; chronological counts are 96/17/128, with hours 1–280 / 281–354 /
+355–741. Sparse validation positives explain threshold instability. In the
+chronological XGBoost run, test precision 1.0 means18 true positives and 0 false
+positives; recall is 18/128 = .1406, with Wilson 95% interval [.0908, .2114]. Its
+precision interval is [.8241, 1.0]. These are weak-recall conservative baselines,
+not a successful operational fraud-prevention claim. Temporal prevalence changes,
+sampling and excluded balances prevent comparison with balance-based PaySim
+leaderboards. Sample selection and model grids were fixed before either test
+report was inspected; neither run was retuned after seeing its test results.
+
+Published structured reports: [PaySim chronological](research/benchmarks/paysim-chronological.json),
+[PaySim stratified](research/benchmarks/paysim-stratified.json), and the preserved
+[diploma ULB reports](research/diploma-ulb-stratified.json). The Laboratory reads
+these immutable measurements separately from active workspace artifacts. IEEE-CIS
+has no measured metrics until authorized data is supplied. Unit fixtures test
+IEEE preprocessing/training interfaces and do not constitute dataset evaluation.
+
+![Independent dataset AP comparisons, with prevalence and validation selection marked](research/benchmarks/comparison.png)
+
+The figure uses all twelve measured model results, not just selected test winners.
+Its dashed prevalence line is a reference, not a measured random-classifier result.
+Regenerate it without any training (optional plotting dependency, outside runtime):
+
+```sh
+uv run --with matplotlib==3.11.2 python scripts/plot_benchmarks.py
+```
