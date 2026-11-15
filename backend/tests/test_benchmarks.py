@@ -93,3 +93,50 @@ def test_benchmark_api_is_independent_of_active_model_and_preserves_contract(cli
     assert any(r["dataset_id"] == "ulb" for r in payload["experiments"])
     assert client.get("/api/v1/models").json() == before
     assert set(before) == {"active_version", "experiments"}
+
+
+@pytest.mark.parametrize("corruption", ["selected", "counts", "shape", "nan"])
+def test_corrupt_report_is_excluded_without_hiding_valid_evidence(tmp_path, corruption):
+    report = json.loads((benchmarks.RESEARCH_DIR / "benchmarks/paysim-stratified.json").read_text())
+    if corruption == "selected":
+        report["selected_model"] = "Missing model"
+    elif corruption == "counts":
+        report["models"][0]["test"]["confusion_matrix"][0][0] = -1
+    elif corruption == "shape":
+        report["models"][0]["test"]["confusion_matrix"] = [[40000]]
+    else:
+        report["models"][0]["test"]["roc_auc"] = float("nan")
+    directory = tmp_path / "benchmarks"
+    directory.mkdir()
+    (directory / "broken.json").write_text(json.dumps(report))
+    payload = benchmarks.catalog(tmp_path)
+    assert not payload["experiments"] and len(payload["report_errors"]) == 1
+
+
+def test_ieee_training_executes_all_algorithms_on_explicit_unit_fixture(monkeypatch):
+    original = benchmarks.candidates
+
+    def tiny(ratio):
+        choices = original(ratio)
+        for estimators in choices.values():
+            for estimator in estimators:
+                if "n_estimators" in estimator.get_params():
+                    estimator.set_params(n_estimators=3)
+        return choices
+
+    monkeypatch.setattr(benchmarks, "candidates", tiny)
+    frame = pd.DataFrame(
+        {
+            "TransactionID": np.arange(120),
+            "TransactionDT": np.arange(120),
+            "TransactionAmt": np.arange(120) + 1.0,
+            "ProductCD": ["W", "C"] * 60,
+            "isFraud": (np.arange(120) % 3 == 0).astype(int),
+            "V1": np.where(np.arange(120) % 4, 1.0, np.nan),
+        }
+    )
+    report = benchmarks.train(frame, "ieee_cis", {"fixture": True})
+    assert len(report["models"]) == 3 and report["dataset_id"] == "ieee_cis"
+    assert report["source"]["fixture"] is True
+    assert "TransactionDT" in report["preprocessing"]["excluded"]
+    assert all(np.isfinite(m["test"]["average_precision"]) for m in report["models"])

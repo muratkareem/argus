@@ -252,6 +252,10 @@ def train(frame, dataset_id, source_audit, split="chronological", identity_audit
     }
 
 
+def reject_json_constant(value):
+    raise ValueError(f"Non-finite JSON constant: {value}")
+
+
 def catalog(directory=RESEARCH_DIR):
     """Expose only explicit completed reports; absent data never gets placeholder metrics."""
     directory = Path(directory)
@@ -262,19 +266,21 @@ def catalog(directory=RESEARCH_DIR):
         if not path.exists():
             continue
         try:
-            report = json.loads(path.read_text())
+            report = json.loads(path.read_text(), parse_constant=reject_json_constant)
             legacy_ulb = path.name.startswith("diploma-ulb-")
             dataset_id = "ulb" if legacy_ulb else report["dataset_id"]
             if dataset_id not in {d["id"] for d in DATASETS}:
                 raise ValueError("Unknown dataset")
             if not legacy_ulb and report.get("execution_status") != "verified":
                 raise ValueError("Report is not an executed benchmark")
-            if {m["name"] for m in report["models"]} != {
+            if len(report["models"]) != 3 or {m["name"] for m in report["models"]} != {
                 "Logistic Regression",
                 "Random Forest",
                 "XGBoost",
             }:
                 raise ValueError("Incomplete model comparison")
+            if report["selected_model"] not in {m["name"] for m in report["models"]}:
+                raise ValueError("Selected model is missing")
             if sum(p["rows"] for p in report["partitions"].values()) != report["rows"]:
                 raise ValueError("Partition counts disagree")
             for model in report["models"]:
@@ -286,11 +292,15 @@ def catalog(directory=RESEARCH_DIR):
                         or not 0 <= value <= 1
                     ):
                         raise ValueError("Invalid measured metric")
-                if (
-                    sum(map(sum, model["test"]["confusion_matrix"]))
-                    != report["partitions"]["test"]["rows"]
-                ):
+                matrix = model["test"]["confusion_matrix"]
+                if len(matrix) != 2 or any(len(row) != 2 for row in matrix):
+                    raise ValueError("Confusion matrix must be 2 by 2")
+                if any(type(value) is not int or value < 0 for row in matrix for value in row):
+                    raise ValueError("Confusion matrix counts must be nonnegative integers")
+                if sum(map(sum, matrix)) != report["partitions"]["test"]["rows"]:
                     raise ValueError("Confusion matrix disagrees with test size")
+                if sum(matrix[1]) != report["partitions"]["test"]["fraud"]:
+                    raise ValueError("Confusion matrix disagrees with positive count")
                 model["test"]["confidence_intervals"] = confidence_intervals(model["test"])
             report.update(
                 dataset_id=dataset_id,
@@ -298,7 +308,7 @@ def catalog(directory=RESEARCH_DIR):
                 data_kind=next(d["data_kind"] for d in DATASETS if d["id"] == dataset_id),
             )
             reports.append(report)
-        except (ValueError, KeyError, TypeError) as exc:
+        except (ValueError, KeyError, TypeError, OSError) as exc:
             errors.append({"file": path.name, "error": str(exc)})
     datasets = [
         {
