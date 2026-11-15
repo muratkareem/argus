@@ -248,3 +248,47 @@ Regenerate it without any training (optional plotting dependency, outside runtim
 ```sh
 uv run --with matplotlib==3.11.2 python scripts/plot_benchmarks.py
 ```
+
+## Preregistered full PaySim reliability extension — 16 November 2026
+
+Before inspecting any new full-source test metrics, the following plan is fixed:
+use the existing official CSV (no redownload), all available records, the same
+excluded fields/predictors and the unchanged two-candidate model grids. Run
+stratified and chronological 60/20/20 evaluations with seeds **42,2026,2027**.
+Seeds affect estimator randomness and stratified partitions; chronological
+partitions remain identical. No existing ULB experiment is rerun. If memory or
+runtime proves impractical, preserve the failure/resource evidence and fall back
+to a newly declared whole-source uniform sample; do not select a seed or sampling
+policy using its test scores.
+
+Use chunked raw validation/fingerprinting, retaining only compact predictors,
+labels, time and event signatures. Deduplicate across chunk boundaries before
+splitting. Run experiments sequentially, at most two estimator threads, and
+record wall time/peak process RSS. Preserve previous 200k reports unchanged.
+
+Report each algorithm's metrics for every seed, with mean, sample standard
+deviation and range across the three seeds. These repeated holdouts overlap;
+chronological runs share test records. The spread is **descriptive algorithm /
+partition sensitivity**, not independent population replication, and must not be
+turned into a naive t-confidence interval or a significance claim. All three
+seeds are included irrespective of performance; no best seed is selected.
+
+Primary seed42 additionally receives **200 day-cluster percentile bootstrap**
+replicates for precision, recall, F1, AP and ROC-AUC, conditional on the frozen
+fitted estimator and threshold. Resample whole observed 24-hour simulation blocks
+with replacement (`floor((step-1)/24)`), preserving within-day records and ties.
+Use bootstrap seed20261116, equal cluster-selection probabilities and exact
+weighted rank metrics. Undefined denominators/one-class replicates are counted
+and excluded only from the affected metric; valid replicate counts are reported.
+These approximate intervals assume independent day clusters, do not capture
+cross-day entity/serial dependence or training uncertainty, and can be unstable
+with few blocks. They are not deployment guarantees. Retain existing Wilson
+precision/recall intervals with their stated conditional IID assumptions.
+
+Record descriptive per-partition hourly label/prevalence and per-type TP/FP/FN/TN,
+amount quantiles and fixed-threshold diagnostics. Compare thresholds **on
+validation only**, using the pre-existing grid/profiles; test results remain
+fixed at the validation-selected F1 threshold. Analyze low recall, overlap of
+legitimate/fraudulent amount/type values and temporal changes without introducing
+new features or tuning after viewing test data. Independently trained dataset
+studies still provide no cross-dataset transfer evidence.

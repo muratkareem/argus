@@ -2,12 +2,28 @@
   "dataset_id": "ieee_cis",
   "data_kind": "real",
   "execution_status": "not_executed",
-  "checked_at": "2026-11-15",
+  "checked_at": "2026-11-16",
   "official_url": "https://www.kaggle.com/api/v1/competitions/data/download-all/ieee-fraud-detection",
   "http_status": 401,
   "blocker": "Kaggle authorization and competition-rule acceptance required. No credentials supplied and no alternate source used.",
   "integration": "Labeled train_transaction.csv adapter and optional one-to-one train_identity.csv join implemented and fixture-tested.",
   "measured_rows": null,
   "metrics": null,
-  "rules": "https://www.kaggle.com/c/ieee-fraud-detection/rules"
+  "rules": "https://www.kaggle.com/c/ieee-fraud-detection/rules",
+  "access_checks": [
+    {
+      "client_date": "2026-11-15",
+      "http_status": 401
+    },
+    {
+      "client_date": "2026-11-16",
+      "timezone": "Asia/Almaty",
+      "http_status": 401,
+      "credential_availability": {
+        "api_token": false,
+        "legacy_environment": false,
+        "credential_file": false
+      }
+    }
+  ]
 }
