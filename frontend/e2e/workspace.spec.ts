@@ -15,7 +15,9 @@ test("analyst can investigate a scored transaction and persist evidence", async 
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page.getByText("LIVE WORKSPACE SNAPSHOT")).toBeVisible();
   await expect(
-    page.getByText(`${snapshot.scored} scored / ${snapshot.total} stored`),
+    page.getByText(
+      `${snapshot.scored.toLocaleString()} scored / ${snapshot.total.toLocaleString()} stored`,
+    ),
   ).toBeVisible();
   await page.getByRole("link", { name: "Transactions", exact: true }).click();
   await page.getByLabel("Assessment filter").selectOption("true");
