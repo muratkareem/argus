@@ -1,0 +1,16 @@
+{
+  "dataset_id": "paysim",
+  "data_kind": "synthetic",
+  "source": "https://www.kaggle.com/datasets/ealaxi/paysim1",
+  "download_url": "https://www.kaggle.com/api/v1/datasets/download/ealaxi/paysim1",
+  "license": "CC BY-SA 4.0",
+  "attribution": "E. A. Lopez-Rojas, A. Elmir, S. Axelsson; PaySim (EMSS 2016)",
+  "downloaded_at": "2026-11-15T18:37:03.989525+00:00",
+  "csv_bytes": 493534783,
+  "csv_sha256": "16910f90577b0d981bf8ff289714510bb89bc71bff7d3f220f024e287e4eea6b",
+  "redistributed": false,
+  "official_metadata_license": "CC BY-SA 4.0",
+  "rows_measured": 6362620,
+  "fraud_rows_measured": 8213,
+  "download_access": "Official public endpoint returned HTTP 200; no credentials, mirrors or bypass"
+}
