@@ -188,40 +188,52 @@ versions: [stratified report](docs/research/ulb-stratified-evaluation.json),
 The measured training runs took 26.0 and 28.4 seconds on this Apple Silicon host
 with two estimator threads; other environments will differ.
 
-### Multi-dataset evaluation
+### Multi-dataset scientific evaluation
 
-The Laboratory's **Dataset** selector shows verified reports and source/access
-status independently of active workspace models. ULB artifacts are preserved;
-new offline runs never activate or overwrite production models.
+The Laboratory's **Dataset** selector separates research reports from active
+workspace models, labels row counts/seeds, and shows conditional uncertainty.
+Existing ULB artifacts and the earlier 200k PaySim reports are preserved unchanged.
+New full-source runs never activate or replace a production model.
 
-| Dataset / split | Scope | Validation-selected model | Test precision | Test recall | Test F1 | Test AP | Test ROC-AUC |
+Primary seed 42 results, with algorithms selected **using validation AP**:
+
+| Dataset / split | Scope | Selected model | Test precision | Test recall | Test F1 | Test AP | Test ROC-AUC |
 |---|---|---|---:|---:|---:|---:|---:|
 | ULB · stratified · real | Full deduplicated source | XGBoost | .9474 | .7579 | .8421 | .8069 | .9793 |
 | ULB · chronological · real | Full deduplicated source | Logistic Regression | .9423 | .6622 | .7778 | .7475 | .9818 |
-| PaySim · stratified · synthetic | Uniform 200k sample, 241 frauds | XGBoost | .4242 | .2917 | .3457 | .2707 | .9157 |
-| PaySim · chronological · synthetic | Same 200k sample | XGBoost | 1.0000 | .1406 | .2466 | .2238 | .8917 |
-| IEEE-CIS · real | Integration complete; official download HTTP401 | **Not executed** | — | — | — | — | — |
+| PaySim · stratified · synthetic | **Full 6,362,620 records** | Random Forest | .7268 | .1717 | .2778 | .2032 | .9239 |
+| PaySim · chronological · synthetic | **Full 6,362,620 records** | XGBoost | .9350 | .1825 | .3054 | .2183 | .9216 |
+| IEEE-CIS · real | Official download HTTP 401, retried 16 November 2026 | **Not executed** | — | — | — | — | — |
 
-All three algorithms are measured per executed dataset/split. PaySim's full CSV
-was downloaded from its author-linked official Kaggle source: 6,362,620 synthetic
-records / 8,213 frauds. Sampling scans the entire CSV, independently of labels/time.
-Balances, policy flags and raw IDs are excluded; test partitions contain 48 and 128
-frauds, respectively. Chronological validation has only 17 frauds; precision 1.0
-means 18/18 alerts and **low recall**, not robust fraud prevention. Reports include
-Wilson 95% precision/recall intervals and measured inference latency. No ULB
-retraining or redownload was needed.
+Full PaySim evaluates **all three algorithms, both split modes and seeds 42, 2026,
+2027**, with a fixed predeclared grid/feature policy. Reports retain each run,
+mean/sample SD/range across seeds, validation threshold profiles, per-type errors
+and 200-replicate day-cluster 95% intervals for the primary seed. Seed spread is
+**descriptive sensitivity**, not independent dataset replication or a population
+confidence interval. All 8,213 frauds are retained; balances, policy outputs and IDs
+are excluded from predictors. Only amount, log amount and transaction type enter
+models. Retained prepared input is 206 MiB; process peak memory is reported per run.
 
-![Measured AP by dataset and split; independently trained models](docs/research/benchmarks/comparison.png)
+![Full PaySim mean and sample SD across the three preregistered seeds](docs/research/benchmarks/paysim-full-reliability.png)
+
+**Low recall remains a material limitation.** The primary stratified forest
+misses 1,360/1,642 frauds, including all 829 fraudulent TRANSFER events. Lowering its
+threshold to .5 raises validation recall but produces 138,947 validation false
+positives; no lower-threshold test result is selected. Temporal class prevalence
+changes, and the final 25 simulation hours contain only 296 records, all fraudulent.
+These are synthetic-data findings, not evidence of real banking robustness.
+Chronological XGBoost misses 3,481/4,258 test frauds despite precision .9350.
 
 **Independent in-domain training is not cross-dataset transfer validation.**
-Prevalence, feature availability and domains differ; this table does not rank
-models across domains. IEEE-CIS requires authorized Kaggle login and competition
-rule acceptance; no replacement data or fabricated metrics were used.
+IEEE-CIS still requires authorized Kaggle login and competition-rule acceptance;
+no replacement dataset, private labels or fabricated results are used.
 
-- [Dataset schemas, official sources, licenses and exact reproduction commands](docs/DATASETS.md#multi-dataset-offline-evaluation)
-- [Experimental protocol, feature exclusions and uncertainty limitations](docs/ML_METHODOLOGY.md#independent-multi-dataset-protocol-15-november-2026)
-- [PaySim stratified JSON](docs/research/benchmarks/paysim-stratified.json) · [chronological JSON](docs/research/benchmarks/paysim-chronological.json) · [download/checksum evidence](docs/research/paysim-source.json)
-- [IEEE-CIS access blocker](docs/research/ieee-cis-access.json)
+- [Full-source per-seed reports and figures](docs/research/benchmarks) · [mean/SD/range JSON](docs/research/paysim-full-summary.json)
+- [Sources, licenses, memory-efficient loading and exact reproduction commands](docs/DATASETS.md#full-source-paysim-reliability-study)
+- [Registered protocol, uncertainty assumptions and error analysis](docs/ML_METHODOLOGY.md)
+- [Temporal and validation-threshold diagnostics](docs/research/benchmarks/paysim-full-diagnostics.png)
+- [Earlier 200k stratified](docs/research/benchmarks/paysim-stratified.json) · [earlier 200k chronological](docs/research/benchmarks/paysim-chronological.json) · [original comparison figure](docs/research/benchmarks/comparison.png)
+- [PaySim source/checksum](docs/research/paysim-source.json) · [IEEE-CIS access evidence](docs/research/ieee-cis-access.json)
 
 PaySim attribution: E. A. Lopez-Rojas, A. Elmir, S. Axelsson, EMSS 2016;
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). ULB attribution:

@@ -177,3 +177,45 @@ TransactionDT is used only for splitting. Only labeled competition training data
 is split; Kaggle's unlabeled competition test is never treated as labeled evidence.
 Review whether anonymized engineered fields would actually be available at the
 operational decision time before extending research claims.
+
+### Full-source PaySim reliability study
+
+The extension dated 16 November 2026 uses the **existing** 6,362,620-row CSV and
+its recorded SHA-256; no dataset is downloaded again. The chunked reader validates
+raw schemas/labels in 100k-row chunks, computes event signatures before discarding
+identifiers/balances, and checks duplicate labels across chunk boundaries. Only
+amount, log amount, categorical type, labels, step and fingerprints are retained.
+Observed retained input size is 206.3 MiB; model/validation arrays require additional
+memory. This allows attempting full-source evaluation on the 16 GiB / 10-logical-CPU
+host without loading six million raw identifier strings at once.
+
+The registered seeds are 42, 2026, 2027 for both split modes; the original 200k
+reports are preserved as historical sampled baselines. Do not pool full-source
+and sampled runs. Replication commands (outputs are exclusive and never overwrite):
+
+```sh
+uv sync --frozen
+PYTHONPATH=backend OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2 VECLIB_MAXIMUM_THREADS=2 \
+  uv run python -m app.benchmark_reliability \
+  --csv data/private/paysim/paysim.csv \
+  --output-dir docs/research/benchmarks \
+  --summary docs/research/paysim-full-summary.json
+# For a fresh replication use a NEW output directory and summary filename.
+# For an interrupted study only, --resume reuses compatible completed reports;
+# it verifies source checksum, implementation checksum, seed, split and row count.
+# An already completed summary causes refusal, preventing accidental retraining.
+```
+
+One pass loads/prepares the source for the sequential study. Each completed run is
+published atomically; no partially written JSON is exposed. Reports include a
+checksum over the implementation files, exact seed, source hash, partition
+fingerprints, environment and process-lifetime peak RSS. The RSS high-water mark
+is shared by sequential runs, not an incremental per-model allocation measurement.
+Individual-run `duration_seconds` includes fit/validation/test diagnostics and
+bootstrap when requested; it excludes the shared initial source read. Timings
+from these developer-machine runs are not controlled performance comparisons.
+
+The PaySim simulation-day bootstrap is only valid for its hourly `step` clock;
+it is intentionally rejected for IEEE-CIS. IEEE access was retried on 16 November
+2026: official HTTP 401, no token/environment credential/file present. The original
+blocker remains; no IEEE measurements or successful-download claim is made.
