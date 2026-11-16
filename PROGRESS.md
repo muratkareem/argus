@@ -1,3 +1,30 @@
+# Full PaySim reliability study completed — 16 November 2026
+
+Recovered the usage-limit interruption from the existing main checkout. All six full-data runs had completed, including chronological seed 2027; no source experiment was rerun during recovery. Last implementation/documentation commit before this checkpoint: `36b4b670706954e5ea9c83e5adaa05ac07906ca5`. Checkpoint hash: `git log -1 -- PROGRESS.md`. User explicitly authorizes normal pushes directly to main.
+
+Completed evidence:
+- Full official PaySim CSV reused without redownload: 6,362,620 records/8,213 frauds, zero duplicates. Stratified and chronological splits, seeds 42/2026/2027, all LR/RF/XGBoost grids fixed before execution. Six immutable report JSONs plus docs/research/paysim-full-summary.json were recovered/validated and committed. Actual training implementation is frozen at 46ac5a7; identical implementation checksums across all six reports were verified before subsequent caption/IEEE-clock corrections. No measurements were altered.
+- Full stratified RF was selected by validation AP in 3/3 runs: test AP mean .206569, sample SD .010935; recall mean .181613, SD .015125. Chronological XGBoost selected 3/3: AP mean .221334, SD .005289; recall .182480 across all three. Every algorithm/seed, threshold, confusion matrix, error group and interval is retained, including unfavorable results.
+- Primary seed 42 has 200-replicate conditional day-cluster intervals for precision/recall/F1/AP/ROC-AUC, with valid replicate counts and assumptions. Seed SD/range is descriptive sensitivity, not independent dataset replication or a naive population CI. Summary means/SD match raw report metrics exactly; independent statistics.mean/stdev checks pass.
+- Low recall remains explicit. Primary stratified RF misses 1,360/1,642 frauds (all 829 TRANSFER frauds); lowering the threshold is analyzed only on validation. Chronological primary XGBoost misses 3,481/4,258 frauds. Source hours 719–743 contain 296 events, all fraud, so plots report both volume and prevalence. No feature/grid/threshold tuning followed test inspection.
+- Chunked raw validation/fingerprints, cross-chunk duplicate conflicts, compact 206.3MiB retained inputs. Max process-lifetime RSS 2482.6875MiB on 16GiB/10-logical-CPU host. Six measured run durations total 1430.26s, including evaluation/diagnostics/bootstrap, excluding the shared initial read. Timings are not controlled throughput claims.
+- Laboratory labels source scope/seed, defaults to the preregistered full chronological primary, displays conditional intervals, preserves active production artifacts. Full-study AP/SD and temporal/validation-threshold figures were regenerated solely from reports and visually inspected. README, dataset/methodology docs, reproduction/resume commands and source/license notices updated. Published reports remain unchanged; live Wilson captions now clarify their scope, and IEEE seconds are not mislabeled as PaySim hours.
+
+Verification actually completed:
+- 103 backend tests passed on SQLite (7.55s) and PostgreSQL (8.90s); Ruff check/format, compilation and scientific local-link checks pass. Existing Starlette/httpx deprecation warning remains.
+- 18 frontend tests, ESLint/TypeScript, production build and 16 Chrome desktop/mobile workflows passed (25.4s). New browser assertions verify all 6 full reports, three seeds, primary selection and day-cluster intervals. Relevant CI Compose assertions require both split seed sets.
+- Compose build/healthy frontend/API/PostgreSQL and proxied six-report smoke passed. Actual existing ULB prediction/SHAP smoke passed; both ULB activation manifests and `/models` remained unchanged. Original ULB and sampled PaySim reports are unchanged in Git.
+- Credential-pattern scans and git whitespace checks passed. Browser-generated unrelated screenshots were preserved in ignored .local/reliability-browser-screenshots/ and tracked originals restored. Raw datasets, credentials, caches and model binaries remain ignored.
+- Logs: .local/paysim-full-study.log, reliability-backend-final.log, reliability-postgres-final.log, reliability-browser.log, reliability-compose.log. No training process remains. GitHub Actions is checked for the final published commit after this checkpoint; consult its run at https://github.com/muratkareem/argus/actions/workflows/ci.yml.
+
+Architecture / modified files:
+Existing FastAPI/SQLAlchemy/React monolith retained. benchmark_data.py adds compact full loading; benchmark_reliability.py provides diagnostics, bootstrap, exclusive atomic checkpoints/resume and seed aggregation; benchmarks.py orchestrates offline reports. ml.partition_indices adds an optional seed with its original default unchanged. No new runtime dependency, production-model activation or DB migration. Full inventory: `git diff --name-status 2fa2210..HEAD`; tests in backend/tests/test_benchmark*.py and frontend Laboratory/e2e; plotting in scripts/plot_benchmarks.py. PROGRESS/NEXT_STEPS supersede historical incomplete-study notes below.
+
+Remaining limits:
+IEEE-CIS is still blocked by official HTTP 401; no new credentials, no retry during recovery, no substitute data or fabricated results. See docs/research/ieee-cis-access.json. PaySim is synthetic, single source, three seeds, conservative amount/log/type features; low recall, recurring entities, cross-day dependence and few/partial-day bootstrap clusters limit interpretation. No calibrated real-world probability, deployment guarantee or frozen-model cross-dataset transfer claim. Future studies require a new prospective design; do not rerun completed experiments merely to resume.
+
+Historical checkpoints follow.
+
 # Multi-dataset scientific extension — 15 November 2026
 
 Baseline: 755ee20; working/publishing directly on main, explicitly authorized by the user. Last completed implementation/test commit before this checkpoint: `c31af03989a127419a025238c40f115b894f0d06`. Resolve this checkpoint's own hash with `git log -1 -- PROGRESS.md`. No ULB redownload/retraining, production artifact activation, database migration or cosmetic redesign was performed.

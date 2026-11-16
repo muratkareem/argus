@@ -1,3 +1,16 @@
+# Completed full-study handoff — 16 November 2026
+
+All six full PaySim experiments and the aggregate summary are complete and committed. Recovery found the sixth had finished; no benchmark training was repeated. Follow this checkpoint rather than the older incomplete-study plans below.
+
+1. Inspect git status/log and the final HEAD GitHub Actions run. Local verification passed: 103 backend tests on each database, 18 frontend tests, 16 browser workflows, lint/type/build/format/compile and Compose/report proxy smoke. All plots were generated from saved results and inspected.
+2. Do NOT rerun ULB or any of the six full PaySim runs, and do NOT redownload data. Reports live in docs/research/benchmarks/paysim-full-*-seed*.json; exact aggregate mean/SD/range is docs/research/paysim-full-summary.json. Reproduction/resume commands are in docs/DATASETS.md; completed outputs refuse overwrite. Rendering figures requires no training.
+3. IEEE-CIS remains blocked by Kaggle HTTP 401. Only retry when authorized credentials/rule acceptance become available. No actual IEEE results exist; fixture tests are not dataset evidence.
+4. Keep weak recall, subgroup misses, temporal volume/prevalence artifacts and conditional-interval assumptions visible. Do not select a favorable seed or retune using saved test outcomes. A new calibration/grouped-validation/transfer study requires a separately declared plan and appropriate untouched assessment.
+5. Preserve all source/license notices and ignored local data/models. The active ULB artifacts, investigations and database contracts are unchanged. Never commit raw CSVs, credentials, caches or fitted model binaries.
+6. Use PROGRESS.md for exact results/files/logs and the final response/Actions page for remote CI. Current scope is complete; future work is gated by research design or IEEE authorization, not a missing PaySim run.
+
+Historical handoffs follow.
+
 # Multi-dataset research handoff — 15 November 2026
 
 Completed implementation and measured results are recorded at the top of PROGRESS.md. Current work is directly on main with explicit push authorization; older branch/no-push instructions below are historical. Preserve existing ULB models and both PaySim reports. Do not rerun experiments or redownload datasets merely to resume.
