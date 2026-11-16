@@ -147,5 +147,6 @@ def test_ieee_training_executes_all_algorithms_on_explicit_unit_fixture(monkeypa
     report = benchmarks.train(frame, "ieee_cis", {"fixture": True})
     assert len(report["models"]) == 3 and report["dataset_id"] == "ieee_cis"
     assert report["source"]["fixture"] is True
+    assert report["temporal_audit"] is None  # IEEE TransactionDT is seconds, not PaySim hours.
     assert "TransactionDT" in report["preprocessing"]["excluded"]
     assert all(np.isfinite(m["test"]["average_precision"]) for m in report["models"])

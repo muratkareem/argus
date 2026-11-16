@@ -93,7 +93,8 @@ def confidence_intervals(result):
         "precision": wilson(tp, tp + fp),
         "recall": wilson(tp, tp + fn),
         "limitation": "IID approximation; ignores temporal/entity dependence and training uncertainty. "
-        "No F1/AP/ROC-AUC confidence intervals or paired significance claims are made.",
+        "Wilson covers precision/recall only; separate day-cluster intervals may be recorded. "
+        "No paired significance claim is made.",
     }
 
 
@@ -278,7 +279,9 @@ def train(
         "temporal_audit": {
             name: temporal_audit(data, idx)
             for name, idx in zip(("train", "validation", "test"), indices)
-        },
+        }
+        if dataset_id == "paysim"
+        else None,
         "models": models,
         "duration_seconds": round(time.perf_counter() - started, 3),
         "resources": {

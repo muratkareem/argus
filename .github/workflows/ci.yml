@@ -99,6 +99,10 @@ jobs:
           statuses = {d['id']: d['status'] for d in benchmarks['datasets']}
           assert statuses['ulb'] == statuses['paysim'] == 'evaluated'
           assert statuses['ieee_cis'] in {'access_required', 'evaluated'}
+          full = [r for r in benchmarks['experiments'] if r['dataset_id'] == 'paysim'
+                  and r.get('source', {}).get('sampling') == 'full dataset']
+          for split in ('stratified', 'chronological'):
+              assert {42, 2026, 2027} <= {r['seed'] for r in full if r['split'] == split}
           print('Compose PostgreSQL + API + frontend + ML smoke passed')
           PY
       - run: docker compose logs --no-color

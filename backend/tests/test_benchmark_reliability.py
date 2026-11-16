@@ -116,3 +116,38 @@ def test_report_publication_is_atomic_exclusive_and_cleans_invalid_output(tmp_pa
     with pytest.raises(ValueError):
         write_report(tmp_path / "invalid.json", {"metric": float("nan")})
     assert [p.name for p in tmp_path.iterdir()] == ["report.json"]
+
+
+def test_published_full_study_summary_matches_every_preregistered_run():
+    from statistics import mean, stdev
+
+    from app.benchmarks import RESEARCH_DIR
+
+    summary = json.loads((RESEARCH_DIR / "paysim-full-summary.json").read_text())
+    assert len(summary["groups"]) == 2
+    for group in summary["groups"]:
+        assert group["seeds"] == [42, 2026, 2027]
+        reports = [
+            json.loads(
+                (
+                    RESEARCH_DIR / f"benchmarks/paysim-full-{group['split']}-seed{seed}.json"
+                ).read_text()
+            )
+            for seed in group["seeds"]
+        ]
+        assert all(r["rows"] == 6362620 and r["fraud_rows"] == 8213 for r in reports)
+        assert len({r["implementation_sha256"] for r in reports}) == 1
+        assert len({r["source"]["csv_sha256"] for r in reports}) == 1
+        if group["split"] == "chronological":
+            assert all(r["partitions"] == reports[0]["partitions"] for r in reports)
+        for model in group["models"]:
+            runs = [next(m for m in r["models"] if m["name"] == model["name"]) for r in reports]
+            for metric in ("precision", "recall", "f1", "average_precision", "roc_auc"):
+                values = [m["test"][metric] for m in runs]
+                assert model["test"][metric]["mean"] == pytest.approx(mean(values), abs=1e-12)
+                assert model["test"][metric]["sample_std"] == pytest.approx(
+                    stdev(values), abs=1e-12
+                )
+            bootstrap = runs[0]["test"]["day_cluster_bootstrap"]
+            assert bootstrap["repeats"] == 200 and bootstrap["clusters"] >= 2
+            assert all(0 <= n <= 200 for n in bootstrap["valid_replicates"].values())
