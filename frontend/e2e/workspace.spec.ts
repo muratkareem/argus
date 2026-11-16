@@ -590,6 +590,18 @@ test("multi-dataset laboratory shows published evidence and honest access blocke
       (e: { dataset_id: string }) => e.dataset_id === "ulb",
     ),
   ).toHaveLength(2);
+  const fullReports = catalog.experiments.filter(
+    (e: { dataset_id: string; source?: { sampling: string } }) =>
+      e.dataset_id === "paysim" && e.source?.sampling === "full dataset",
+  );
+  expect(fullReports).toHaveLength(6);
+  expect(new Set(fullReports.map((e: { seed: number }) => e.seed))).toEqual(
+    new Set([42, 2026, 2027]),
+  );
+  const primary = fullReports.find(
+    (e: { seed: number; split: string }) =>
+      e.seed === 42 && e.split === "chronological",
+  );
   await page.goto("/#laboratory");
   await page
     .getByRole("combobox", { name: "Dataset", exact: true })
@@ -603,6 +615,12 @@ test("multi-dataset laboratory shows published evidence and honest access blocke
     page.getByRole("region", { name: "Model comparison results" }),
   ).toBeVisible();
   await expect(page.getByText(/95% Wilson intervals/)).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Experiment", exact: true }),
+  ).toHaveValue(primary.version);
+  await expect(
+    page.getByText(/Conditional day-cluster 95% intervals/),
+  ).toBeVisible();
   await page.getByText("Verified dataset comparison", { exact: true }).click();
   await expect(
     page.getByRole("region", { name: "Verified dataset comparison" }),
